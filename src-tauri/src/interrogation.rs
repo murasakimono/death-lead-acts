@@ -122,6 +122,120 @@ pub fn run_confrontation(seed: &str, suspect_a_id: &str, suspect_b_id: &str) -> 
     }
 }
 
+pub fn run_tactic(seed: &str, suspect_id: &str, tactic: &str) -> TacticResult {
+    let (case_file, truth) = generate_case(seed, "detective");
+    let Some(suspect) = case_file.suspects.iter().find(|s| s.id == suspect_id) else {
+        return TacticResult {
+            success: false,
+            pulse_delta: 0,
+            reply: "Şüpheli bulunamadı.".to_string(),
+            revealed_secret: None,
+            reputation_delta: 0,
+        };
+    };
+    let s_truth = truth.suspect_secrets.iter().find(|s| s.suspect_id == suspect_id);
+    let is_guilty = s_truth.map(|t| t.is_killer || t.is_accomplice).unwrap_or(false);
+    let has_secret = s_truth.map(|t| !t.active_lie.contains("Yalan söylemiyor")).unwrap_or(false);
+    let is_nervous = suspect.archetype_tag.contains("Gergin") || suspect.archetype_tag.contains("Panik") || suspect.archetype_tag.contains("İçe Dönük");
+    let is_cold = suspect.archetype_tag.contains("Soğukkanlı") || suspect.archetype_tag.contains("Otoriter") || suspect.archetype_tag.contains("Manipülatif");
+
+    match tactic {
+        "aggressive" => {
+            if is_nervous || has_secret {
+                TacticResult {
+                    success: true,
+                    pulse_delta: 28,
+                    reply: format!(
+                        "{} (sesi titreyerek): \"Üstüme gelmeyin! Tamam, her şeyi anlatmadım ama o gece koridorda tek başıma değildim — zaman çizelgesine bakın!\"",
+                        suspect.name
+                    ),
+                    revealed_secret: Some(format!("SERT BASKI İŞE YARADI: {} panikledi ({}).", suspect.name, suspect.archetype_tag)),
+                    reputation_delta: 0,
+                }
+            } else {
+                TacticResult {
+                    success: false,
+                    pulse_delta: 4,
+                    reply: format!(
+                        "{} (soğukkanlı): \"Bağırarak beni korkutabileceğinizi sanıyorsanız yanılıyorsunuz dedektif. Somut kanıtınız varsa masaya koyun.\"",
+                        suspect.name
+                    ),
+                    revealed_secret: None,
+                    reputation_delta: 0,
+                }
+            }
+        }
+        "sympathetic" => {
+            if !is_cold {
+                TacticResult {
+                    success: true,
+                    pulse_delta: -6,
+                    reply: format!(
+                        "{} (derin nefes alarak): \"Bakın dedektif... kimseye zarar vermedim. Ama {} o gece çok gergindi, telefonunda sakladığı bir dosya yüzünden biriyle kavga etti.\"",
+                        suspect.name, case_file.victim_name
+                    ),
+                    revealed_secret: Some(format!("EMPATİ İŞE YARADI: {} savunmayı indirdi ve kurbanın son kavgasını doğruladı.", suspect.name)),
+                    reputation_delta: 0,
+                }
+            } else {
+                TacticResult {
+                    success: false,
+                    pulse_delta: 2,
+                    reply: format!(
+                        "{} (alaycı): \"İyi polis oyunu mu oynuyoruz? Bu numaraları geçelim.\"",
+                        suspect.name
+                    ),
+                    revealed_secret: None,
+                    reputation_delta: 0,
+                }
+            }
+        }
+        "bluff" => {
+            if is_guilty && !is_cold {
+                TacticResult {
+                    success: true,
+                    pulse_delta: 48,
+                    reply: format!(
+                        "{} (rengi soldu): \"Ne?! Laboratuvar raporunda benim izim mi çıktı?! Bekleyin... oraya sadece konuşmaya gittim, her şey bir anda oldu!\"",
+                        suspect.name
+                    ),
+                    revealed_secret: Some(format!("BLÖF TUTTU! {} ağzından olay yerinde olduğunu kaçırdı!", suspect.name)),
+                    reputation_delta: 0,
+                }
+            } else if has_secret && !is_guilty {
+                TacticResult {
+                    success: true,
+                    pulse_delta: 36,
+                    reply: format!(
+                        "{} (panikle): \"Durun! Kamera kaydınız varsa söyleyeyim — evet koridordaydım ama cinayetle ilgim yok, kendi sırrım yüzünden oradaydım!\"",
+                        suspect.name
+                    ),
+                    revealed_secret: Some(format!("BLÖF TUTTU: {} kendi gizli sırrını açık etti (ama asıl fail olmayabilir).", suspect.name)),
+                    reputation_delta: 0,
+                }
+            } else {
+                TacticResult {
+                    success: false,
+                    pulse_delta: -5,
+                    reply: format!(
+                        "{} (gözlerini kısarak): \"Blöf yapıyorsunuz dedektif. Öyle bir rapor olsaydı çoktan tutuklama emriyle gelirdiniz. Savcılığa şikâyet edeceğim!\"",
+                        suspect.name
+                    ),
+                    revealed_secret: None,
+                    reputation_delta: -1,
+                }
+            }
+        }
+        _ => TacticResult {
+            success: false,
+            pulse_delta: 0,
+            reply: "Bilinmeyen taktik.".to_string(),
+            revealed_secret: None,
+            reputation_delta: 0,
+        },
+    }
+}
+
 pub fn verify_phone_pin(seed: &str, pin: &str) -> PinVerifyResult {
     let (case_file, truth) = generate_case(seed, "detective");
     if pin.trim() == truth.phone_pin {

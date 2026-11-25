@@ -13,7 +13,7 @@ import {
   Users,
   Pin,
 } from 'lucide-react';
-import { apiAiInterrogate, apiConfrontSuspects, apiGetOllamaStatus, apiPresentEvidence, sfx } from '../api';
+import { apiAiInterrogate, apiApplyTactic, apiConfrontSuspects, apiGetOllamaStatus, apiPresentEvidence, sfx } from '../api';
 import { getPortraitUrl, type AiChatMessage, type CaseFile, type ConfrontationResult, type OllamaStatus, type Statement } from '../types';
 
 interface InterrogationViewProps {
@@ -454,6 +454,37 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
               })}
             </div>
 
+            {/* Psychological Interrogation Tactics: Aggressive / Empathy / Bluff */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'aggressive' as const, label: 'SERT BASKI', sub: 'Gergin tipleri sarsar', style: 'border-[#5E2A2A] bg-[#1E1313] text-[#E6A1A1] hover:border-[#C42B2B]' },
+                { id: 'sympathetic' as const, label: 'EMPATİ KUR', sub: 'Savunmayı indirir', style: 'border-[#2E424A] bg-[#131A1D] text-[#A9CBD9] hover:border-[#7AA2B8]' },
+                { id: 'bluff' as const, label: 'BLÖF YAP [RİSKLİ]', sub: 'Yerse itiraf, yemezse -1 itibar', style: 'border-[#5E4A22] bg-[#1E1910] text-[#E6C78A] hover:border-[#C49A52]' },
+              ].map((tac) => (
+                <button
+                  key={tac.id}
+                  onClick={async () => {
+                    const res = await apiApplyTactic(caseFile.seed, suspect.id, tac.id);
+                    setPressLog(res.reply);
+                    if (res.success) {
+                      sfx.heartbeat();
+                      setPulseBoost((p) => Math.max(0, Math.min(60, p + res.pulse_delta)));
+                      if (res.revealed_secret) {
+                        onConfrontUnlock?.(res.revealed_secret, null);
+                      }
+                    } else {
+                      sfx.error();
+                      if (res.reputation_delta !== 0) onReputationChange(res.reputation_delta);
+                    }
+                  }}
+                  className={`p-2 border text-left transition cursor-pointer ${tac.style}`}
+                >
+                  <div className="text-[10px] font-mono-tech font-bold uppercase">{tac.label}</div>
+                  <div className="text-[9px] opacity-75 mt-0.5">{tac.sub}</div>
+                </button>
+              ))}
+            </div>
+
             {/* Branching Cross-Examination Follow-Up Questions */}
             {suspect.follow_ups.length > 0 && (
               <div className="space-y-1.5">
@@ -478,9 +509,9 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
               </div>
             )}
 
-            {/* Active Response Box */}
+            {/* Active Response Box (Physical Typewriter Transcript Slip) */}
             {pressLog && (
-              <div className="p-4 bg-[#0A0D12] border-l-4 border-red-500 text-sm text-slate-200 leading-relaxed">
+              <div className="p-4 paper-slip border-l-4 !border-l-[#9E1B1B] font-typewriter text-sm leading-relaxed">
                 {pressLog}
               </div>
             )}

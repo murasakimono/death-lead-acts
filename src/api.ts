@@ -13,7 +13,16 @@ import type {
   OllamaStatus,
   PinVerifyResult,
   PresentResult,
+  TacticResult,
 } from './types';
+
+export async function apiApplyTactic(
+  seed: string,
+  suspectId: string,
+  tactic: 'aggressive' | 'sympathetic' | 'bluff'
+): Promise<TacticResult> {
+  return invoke<TacticResult>('apply_tactic', { seed, suspectId, tactic });
+}
 
 export async function apiGetCampaign(): Promise<CampaignChapter[]> {
   return invoke<CampaignChapter[]>('get_campaign');
@@ -243,6 +252,66 @@ class NoirSoundEngine {
     src.start();
     this.rainNode = src;
     this.rainGain = gain;
+  }
+
+  public dialClick() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1450, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.018);
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.022);
+  }
+
+  public faxBeep() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [1100, 1480, 1100].forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + i * 0.09);
+      gain.gain.setValueAtTime(0.05, now + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.075);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.08);
+    });
+  }
+
+  public playStaticBurst(clarityPct: number) {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const dur = 0.22;
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    const noiseAmt = Math.max(0.04, (100 - clarityPct) / 100);
+    for (let i = 0; i < data.length; i++) {
+      const t = i / ctx.sampleRate;
+      const voiceTone = Math.sin(2 * Math.PI * 220 * t) * 0.4 + Math.sin(2 * Math.PI * 330 * t) * 0.25;
+      data[i] = (Math.random() * 2 - 1) * noiseAmt * 0.35 + voiceTone * (clarityPct / 100) * 0.35;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 350 + clarityPct * 8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
   }
 
   public click() {

@@ -1,6 +1,7 @@
-import React from 'react';
-import { Clock, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, AlertCircle, Route, CheckCircle2 } from 'lucide-react';
 import { formatMinutesFrom19, type CaseFile } from '../types';
+import { sfx } from '../api';
 
 interface TimelineViewProps {
   caseFile: CaseFile;
@@ -13,11 +14,19 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   unlockedEvidence,
   autopsyLockedWindow,
 }) => {
-  // Range: 19:00 (0) to 01:00 (360 min)
+  const [routeSteps, setRouteSteps] = useState<string[]>([]);
   const totalMin = 360;
   const hours = [0, 60, 120, 180, 240, 300, 360];
-
   const pct = (m: number) => `${Math.max(0, Math.min(100, (m / totalMin) * 100))}%`;
+
+  const toggleRoomInRoute = (roomName: string) => {
+    sfx.click();
+    setRouteSteps((prev) => {
+      if (prev.includes(roomName)) return prev.filter((x) => x !== roomName);
+      if (prev.length >= 3) return [prev[1], prev[2], roomName];
+      return [...prev, roomName];
+    });
+  };
 
   return (
     <div className="h-full p-4 flex flex-col gap-4 overflow-hidden">
@@ -138,11 +147,48 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         </div>
 
         {!autopsyLockedWindow && (
-          <div className="mt-5 p-3 bg-amber-950/25 border border-amber-800/60 text-xs font-mono-tech text-amber-200 flex items-center gap-2">
+          <div className="mt-5 p-3 bg-[#1C1610] border border-[#5E481F] text-xs font-mono-tech text-[#D6B06C] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            Ölüm penceresi henüz kilitlenmedi. Adli & Dijital Dosya sekmesinden Adli Tıp Hesabı&apos;nı tamamlayarak kırmızı ölüm bandını buraya yansıtabilirsin.
+            Ölüm penceresi henüz kilitlenmedi. Adli Lab sekmesinden Ölüm Saati hesabını doğrulayarak kırmızı bandı buraya yansıt.
           </div>
         )}
+
+        {/* Crime Route Reconstruction Bar */}
+        <div className="mt-5 pt-4 border-t border-[#2E2922] space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono-tech text-[#C49A52] uppercase tracking-wider flex items-center gap-1.5">
+              <Route className="w-3.5 h-3.5" /> OLAY YERİ ROTA YENİDEN İNŞASI (GİRİŞ → EYLEM → KAÇIŞ)
+            </span>
+            {routeSteps.length === 3 && (
+              <span className="text-[10px] font-mono-tech text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> ROTA HİPOTEZİ KAYDEDİLDİ
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {caseFile.rooms.map((r) => {
+              const idx = routeSteps.indexOf(r.name);
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => toggleRoomInRoute(r.name)}
+                  className={`px-3 py-1.5 text-[11px] font-mono-tech border cursor-pointer transition ${
+                    idx >= 0
+                      ? 'bg-[#8C1D1D]/40 border-[#C42B2B] text-[#F5EFE2]'
+                      : 'bg-[#12100E] border-[#2E2922] text-[#9A8F7D] hover:border-[#C49A52]'
+                  }`}
+                >
+                  {idx >= 0 ? `${idx + 1}. ` : ''}{r.name}
+                </button>
+              );
+            })}
+          </div>
+          {routeSteps.length > 0 && (
+            <div className="text-xs font-typewriter text-[#D6C6A5]">
+              Çizilen Rota: {routeSteps.join('  →  ')}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

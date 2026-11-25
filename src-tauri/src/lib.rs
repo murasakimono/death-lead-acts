@@ -38,6 +38,11 @@ fn confront_suspects(
 }
 
 #[tauri::command]
+fn apply_tactic(seed: String, suspect_id: String, tactic: String) -> TacticResult {
+    interrogation::run_tactic(&seed, &suspect_id, &tactic)
+}
+
+#[tauri::command]
 fn verify_pin(seed: String, pin: String) -> PinVerifyResult {
     interrogation::verify_phone_pin(&seed, &pin)
 }
@@ -70,6 +75,7 @@ pub fn run() {
             new_case,
             present_evidence,
             confront_suspects,
+            apply_tactic,
             verify_pin,
             verify_safe,
             submit_accusation,

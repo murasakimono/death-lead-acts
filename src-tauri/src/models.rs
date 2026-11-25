@@ -300,6 +300,15 @@ pub struct ConfrontationResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TacticResult {
+    pub success: bool,
+    pub pulse_delta: i32,
+    pub reply: String,
+    pub revealed_secret: Option<String>,
+    pub reputation_delta: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PinVerifyResult {
     pub unlocked: bool,
     pub message: String,

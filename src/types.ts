@@ -37,6 +37,14 @@ export interface ConfrontationResult {
   unlocked_evidence_id: string | null;
 }
 
+export interface TacticResult {
+  success: boolean;
+  pulse_delta: number;
+  reply: string;
+  revealed_secret: string | null;
+  reputation_delta: number;
+}
+
 export interface PinnedQuote {
   id: string;
   suspectName: string;

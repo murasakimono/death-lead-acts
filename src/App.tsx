@@ -90,6 +90,7 @@ export function App() {
   const [musicOn, setMusicOn] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
+  const [incomingFax, setIncomingFax] = useState<{ title: string; body: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -125,6 +126,7 @@ export function App() {
     setShowAccusation(false);
     setElapsedSec(0);
     setRemainingSec(cf.time_limit_sec);
+    setIncomingFax(null);
     setNotebookText(localStorage.getItem(`dla_note_${cf.seed}`) || '');
     showToast(`Dosya açıldı: ${cf.case_code} — ${cf.crime_type}`);
   };
@@ -138,6 +140,24 @@ export function App() {
     }, 1000);
     return () => clearInterval(t);
   }, [screen, caseFile]);
+
+  // Live Incoming Fax / Lab Dispatch feed while investigating
+  useEffect(() => {
+    if (screen !== 'desk' || !caseFile) return;
+    if (elapsedSec === 45) {
+      sfx.faxBeep();
+      setIncomingFax({
+        title: 'GELEN FAKS // ADLİ LABORATUVAR ÖN NOTU',
+        body: `${caseFile.venue_name} olay yerindeki UV taramasını ve çalışma masası çerçevesinin arka yüzünü mutlaka kontrol et. Çıplak gözle görünmeyen izler var.`,
+      });
+    } else if (elapsedSec === 115) {
+      sfx.faxBeep();
+      setIncomingFax({
+        title: 'ACİL İHBAR // MERKEZ TELSİZ',
+        body: `Şüphelilerden bazıları birbirine sahte alibi vermiş olabilir. Sorgu Odası'ndaki YÜZLEŞTİRME ve BLÖF taktiklerini kullan.`,
+      });
+    }
+  }, [elapsedSec, screen, caseFile]);
 
   // Auto-trigger ACT II
   useEffect(() => {
@@ -469,6 +489,21 @@ export function App() {
               placeholder="Şüpheli notların, saat çelişkileri, PIN/kasa sayıları..."
               className="flex-1 bg-[#080B10] border border-slate-800 p-3 text-xs font-mono-tech text-slate-200 resize-none focus:outline-none focus:border-amber-500 leading-relaxed"
             />
+          </div>
+        )}
+
+        {/* Physical Incoming Thermal Fax Dispatch Slip */}
+        {incomingFax && (
+          <div className="fixed bottom-5 left-5 z-40 w-80 paper-slip p-3.5 border-t-4 !border-t-[#9E1B1B] shadow-2xl">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-mono-tech font-bold text-[#9E1B1B] tracking-widest uppercase">
+                {incomingFax.title}
+              </span>
+              <button onClick={() => setIncomingFax(null)} className="text-[#5A5043] hover:text-black cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="font-typewriter text-xs text-[#1C1814] leading-relaxed">{incomingFax.body}</p>
           </div>
         )}
 
