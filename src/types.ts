@@ -341,6 +341,19 @@ export interface CareerRecord {
   date_iso: string;
 }
 
+export interface CampaignChapter {
+  chapter: number;
+  seed: string;
+  code: string;
+  title: string;
+  subtitle: string;
+  venue_hint: string;
+  difficulty: DifficultyMode | string;
+  synopsis: string;
+  signature_clue_title: string;
+  signature_clue_detail: string;
+}
+
 export interface CareerStats {
   xp: number;
   solvedCount: number;
@@ -350,22 +363,20 @@ export interface CareerStats {
 }
 
 export function getPortraitUrl(portraitIndex: number): string {
-  // Gender-matched mapping to our 5 cohesive Neo-Noir photographic portraits:
-  // Female indices in SUSPECT_POOL: 0, 2, 4, 6, 8 -> p0, p2, p4
-  // Male indices in SUSPECT_POOL: 1, 3, 5, 7, 9 -> p1, p3
+  // Strictly unique gender-aligned mapping across 5 suspects (3F + 2M -> p0,p2,p4 + p1,p3)
   const map: Record<number, number> = {
     0: 0,
-    1: 1,
     2: 2,
-    3: 3,
     4: 4,
+    6: 0,
+    8: 2,
+    1: 1,
+    3: 3,
     5: 1,
-    6: 2,
     7: 3,
-    8: 0,
-    9: 3,
+    9: 1,
   };
-  return `/assets/portraits/p${map[portraitIndex] ?? 0}.jpg`;
+  return `/assets/portraits/p${map[portraitIndex] ?? (portraitIndex % 5)}.jpg`;
 }
 
 export function getSceneUrl(venueIndex: number): string {

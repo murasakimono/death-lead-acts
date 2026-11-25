@@ -9,6 +9,7 @@ import {
   Volume2,
   VolumeX,
   CloudRain,
+  Music,
   Shield,
   Sparkles,
   BookOpen,
@@ -16,11 +17,12 @@ import {
   Home,
   X,
 } from 'lucide-react';
-import { apiNewCase, loadCareer, recordCareerCase, sfx } from './api';
+import { apiNewCase, loadCareer, loadSolvedChapters, markChapterSolved, recordCareerCase, sfx } from './api';
 import type {
   AccusationResult,
   BoardLink,
   BoardNodePos,
+  CampaignChapter,
   CareerStats,
   CaseFile,
   DeskTab,
@@ -58,6 +60,8 @@ function defaultBoardLayout(cf: CaseFile): Record<string, BoardNodePos> {
 export function App() {
   const [screen, setScreen] = useState<'menu' | 'desk'>('menu');
   const [career, setCareer] = useState<CareerStats>(() => loadCareer());
+  const [solvedChapters, setSolvedChapters] = useState<number[]>(() => loadSolvedChapters());
+  const [activeChapter, setActiveChapter] = useState<CampaignChapter | null>(null);
   const [caseFile, setCaseFile] = useState<CaseFile | null>(null);
   const [activeTab, setActiveTab] = useState<DeskTab>('scene');
   const [currentAct, setCurrentAct] = useState<number>(1);
@@ -82,6 +86,7 @@ export function App() {
   const [notebookText, setNotebookText] = useState('');
   const [soundOn, setSoundOn] = useState(true);
   const [ambientOn, setAmbientOn] = useState(false);
+  const [musicOn, setMusicOn] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
 
@@ -92,8 +97,13 @@ export function App() {
     }, 4500);
   };
 
-  const startCase = async (seed: string, difficulty: DifficultyMode = 'detective') => {
+  const startCase = async (
+    seed: string,
+    difficulty: DifficultyMode = 'detective',
+    chapter: CampaignChapter | null = null
+  ) => {
     const cf = await apiNewCase(seed, difficulty);
+    setActiveChapter(chapter);
     setCaseFile(cf);
     setScreen('desk');
     setActiveTab('scene');
@@ -145,6 +155,12 @@ export function App() {
     sfx.toggleAmbient(next);
   };
 
+  const handleToggleMusic = () => {
+    const next = !musicOn;
+    setMusicOn(next);
+    sfx.toggleNoirMusic(next);
+  };
+
   const handleUseHint = () => {
     if (!caseFile) return;
     if (hintsUsed >= caseFile.max_hints) {
@@ -174,6 +190,11 @@ export function App() {
       date_iso: new Date().toISOString(),
     });
     setCareer(updated);
+    if (res.solved && activeChapter) {
+      const nextSolved = markChapterSolved(activeChapter.chapter);
+      setSolvedChapters(nextSolved);
+      showToast(`İMZA DELİLİ AÇILDI: ${activeChapter.signature_clue_title}`);
+    }
   };
 
   const handleNotebookChange = (val: string) => {
@@ -185,8 +206,11 @@ export function App() {
     return (
       <MainMenu
         career={career}
+        solvedChapters={solvedChapters}
         ambientOn={ambientOn}
+        musicOn={musicOn}
         onToggleAmbient={handleToggleAmbient}
+        onToggleMusic={handleToggleMusic}
         onStartCase={startCase}
       />
     );
@@ -287,13 +311,20 @@ export function App() {
             <BookOpen className="w-3.5 h-3.5" /> NOT
           </button>
 
-          {/* Ambient Rain Toggle */}
+          {/* Ambient Rain & Noir Music Toggles */}
           <button
             onClick={handleToggleAmbient}
             title="Yağmur & Gece Atmosferi"
             className={`p-1.5 border cursor-pointer ${ambientOn ? 'bg-sky-900/40 border-sky-400 text-sky-300' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}
           >
             <CloudRain className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleToggleMusic}
+            title="Karanlık Noir Müzik"
+            className={`p-1.5 border cursor-pointer ${musicOn ? 'bg-purple-900/40 border-purple-400 text-purple-300' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}
+          >
+            <Music className="w-4 h-4" />
           </button>
 
           {/* SFX Toggle */}

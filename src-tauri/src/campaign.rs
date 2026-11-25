@@ -1,0 +1,80 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampaignChapter {
+    pub chapter: u8,
+    pub seed: String,
+    pub code: String,
+    pub title: String,
+    pub subtitle: String,
+    pub venue_hint: String,
+    pub difficulty: String,
+    pub synopsis: String,
+    pub signature_clue_title: String,
+    pub signature_clue_detail: String,
+}
+
+pub fn get_shadow_campaign() -> Vec<CampaignChapter> {
+    vec![
+        CampaignChapter {
+            chapter: 1,
+            seed: "SHADOW-CH01-KUL".to_string(),
+            code: "BÖLÜM I".to_string(),
+            title: "SESSİZ NÖBET".to_string(),
+            subtitle: "Gölge Dosyası • İlk İmza".to_string(),
+            venue_hint: "Özel Koru Hastanesi — Gece Nöbeti".to_string(),
+            difficulty: "detective".to_string(),
+            synopsis: "Gece nöbetinde işlenen soğukkanlı bir vaka. İlk bakışta sıradan bir kurum içi hesaplaşma gibi duruyor — ta ki kurbanın kasasında 'PROJE-KÜL' damgalı şifreli dekont çıkana kadar.".to_string(),
+            signature_clue_title: "İMZA DELİLİ #1 — PROJE-KÜL DEKONTU".to_string(),
+            signature_clue_detail: "Olay yerinden çıkan gizli evrakta 'PROJE-KÜL' kod adlı paravan hesabına bağlı bir imza tespit edildi. Bu dosya tek başına değil.".to_string(),
+        },
+        CampaignChapter {
+            chapter: 2,
+            seed: "SHADOW-CH02-KASA".to_string(),
+            code: "BÖLÜM II".to_string(),
+            title: "BOĞAZ'DA KASA".to_string(),
+            subtitle: "Para İzini Sür".to_string(),
+            venue_hint: "Bebek Sahil Malikânesi".to_string(),
+            difficulty: "detective".to_string(),
+            synopsis: "PROJE-KÜL transferinin ucu Boğaz'daki bir malikâneye uzanıyor. Kasa boşaltılmış, tanıklar yalan söylüyor ve herkes birbirinin sırrını örtüyor.".to_string(),
+            signature_clue_title: "İMZA DELİLİ #2 — GİZLİ HAT (+90 5XX 004 19 88)".to_string(),
+            signature_clue_detail: "Kurbanın son aradığı kayıtsız hat, 1. bölümdeki hastane baz istasyonunda da aynı gece sinyal vermiş. Aynı el ipleri çekiyor.".to_string(),
+        },
+        CampaignChapter {
+            chapter: 3,
+            seed: "SHADOW-CH03-VIP".to_string(),
+            code: "BÖLÜM III".to_string(),
+            title: "14. KAT SİNYALİ".to_string(),
+            subtitle: "Ortak Yalan & İşbirlikçi".to_string(),
+            venue_hint: "Grand Pera Otel — 14. Kat".to_string(),
+            difficulty: "homicide".to_string(),
+            synopsis: "Kayıtsız hattın sahibi lüks bir otelin kilitli 14. katında iz bıraktı. Bu kez tek bir fail değil — birbirine kalkan olan işbirlikçileri yüzleştirip kırman gerekecek.".to_string(),
+            signature_clue_title: "İMZA DELİLİ #3 — TELSİZ EMRİ: 'MİMAR'".to_string(),
+            signature_clue_detail: "Temizlenen telsiz kaydında tek bir cümle duyuldu: 'Mimar sabah 06:00'da açık denizde olacak, tüm ham kayıtları yok edin.'".to_string(),
+        },
+        CampaignChapter {
+            chapter: 4,
+            seed: "SHADOW-CH04-SES".to_string(),
+            code: "BÖLÜM IV".to_string(),
+            title: "GECE KAYDI".to_string(),
+            subtitle: "Ham Ses & Sahte İz".to_string(),
+            venue_hint: "Karaköy Yeraltı Kayıt Stüdyosu".to_string(),
+            difficulty: "timed".to_string(),
+            synopsis: "Mimar'ın sesini kaydeden yeraltı stüdyosunda savcılık süresi daralıyor. Yanıltıcı deliller arasında gerçeği 15 dakika dolmadan çıkar.".to_string(),
+            signature_clue_title: "İMZA DELİLİ #4 — MİMAR'IN SES SPEKTRUMU".to_string(),
+            signature_clue_detail: "Kurtarılan ham kayıt, ilk 3 vakadaki tüm talimatları veren kişinin bizzat M/Y Kutup Yıldızı yatında olduğunu kanıtladı.".to_string(),
+        },
+        CampaignChapter {
+            chapter: 5,
+            seed: "SHADOW-CH05-MIMAR".to_string(),
+            code: "BÖLÜM V — FİNAL".to_string(),
+            title: "MİMAR'IN DÜŞÜŞÜ".to_string(),
+            subtitle: "Gölge Dosyası Büyük Finali".to_string(),
+            venue_hint: "M/Y Kutup Yıldızı — Açık Deniz".to_string(),
+            difficulty: "homicide".to_string(),
+            synopsis: "4 bölüm boyunca topladığın tüm imza delilleri burada birleşiyor. Açık denizde, kaçış yok: Mimar'ın son oyununu 4 somut kanıtla mühürle ve Gölge Dosyası'nı kapat.".to_string(),
+            signature_clue_title: "GÖLGE DOSYASI KAPANDI — ANA BEYİN YAKALANDI".to_string(),
+            signature_clue_detail: "PROJE-KÜL ağı tamamen çökertildi. Tüm 5 dosya savcılığa eksiksiz teslim edildi.".to_string(),
+        },
+    ]
+}

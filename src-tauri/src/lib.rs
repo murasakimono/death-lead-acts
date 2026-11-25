@@ -1,8 +1,15 @@
+mod campaign;
 mod generator;
 mod interrogation;
 mod models;
 
+use campaign::CampaignChapter;
 use models::*;
+
+#[tauri::command]
+fn get_campaign() -> Vec<CampaignChapter> {
+    campaign::get_shadow_campaign()
+}
 
 #[tauri::command]
 fn new_case(seed: String, difficulty: Option<String>) -> CaseFile {
@@ -59,6 +66,7 @@ async fn ai_interrogate(request: AiInterrogateRequest) -> Result<AiInterrogateRe
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            get_campaign,
             new_case,
             present_evidence,
             confront_suspects,

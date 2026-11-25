@@ -266,19 +266,32 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
     let mut rng = ChaCha8Rng::seed_from_u64(hash_seed(&clean_seed));
 
-    let venue_index = rng.gen_range(0..VENUES.len());
+    let venue_index = match clean_seed.as_str() {
+        "SHADOW-CH01-KUL" => 0,
+        "SHADOW-CH02-KASA" => 1,
+        "SHADOW-CH03-VIP" => 2,
+        "SHADOW-CH04-SES" => 3,
+        "SHADOW-CH05-MIMAR" => 5,
+        _ => rng.gen_range(0..VENUES.len()),
+    };
     let venue = &VENUES[venue_index];
     let weather_choices = ["rain", "blackout", "fog"];
     let scene_weather = weather_choices[rng.gen_range(0..weather_choices.len())].to_string();
 
     // Resolution twist: 55% single_culprit, 25% accomplice (dual alibi!), 20% accident_suicide
     let roll = rng.gen_range(0..100);
-    let resolution_type = if roll < 55 {
-        "single_culprit".to_string()
-    } else if roll < 80 {
-        "accomplice".to_string()
-    } else {
-        "accident_suicide".to_string()
+    let resolution_type = match clean_seed.as_str() {
+        "SHADOW-CH01-KUL" | "SHADOW-CH02-KASA" | "SHADOW-CH05-MIMAR" => "single_culprit".to_string(),
+        "SHADOW-CH03-VIP" => "accomplice".to_string(),
+        _ => {
+            if roll < 55 {
+                "single_culprit".to_string()
+            } else if roll < 80 {
+                "accomplice".to_string()
+            } else {
+                "accident_suicide".to_string()
+            }
+        }
     };
 
     let crime = if resolution_type == "accident_suicide" {
@@ -293,9 +306,20 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
     let victim_role = venue.victim_roles[rng.gen_range(0..venue.victim_roles.len())];
     let victim_age = rng.gen_range(44..64);
 
-    let mut pool_indices: Vec<usize> = (0..SUSPECT_POOL.len()).collect();
-    pool_indices.shuffle(&mut rng);
-    let chosen = &pool_indices[0..5];
+    // Guarantee 5 suspects with 5 strictly unique visual portraits (3 female: 0,2,4,6,8 + 2 male: 1,3,5,7,9)
+    let mut female_pool: Vec<usize> = vec![0, 2, 4, 6, 8];
+    let mut male_pool: Vec<usize> = vec![1, 3, 5, 7, 9];
+    female_pool.shuffle(&mut rng);
+    male_pool.shuffle(&mut rng);
+    let mut chosen_vec = vec![
+        female_pool[0],
+        male_pool[0],
+        female_pool[1],
+        male_pool[1],
+        female_pool[2],
+    ];
+    chosen_vec.shuffle(&mut rng);
+    let chosen = &chosen_vec[0..5];
 
     let killer_slot = rng.gen_range(0..5);
     let mut red_herring_slots: Vec<usize> = (0..5).filter(|&i| i != killer_slot).collect();

@@ -4,7 +4,7 @@
 
 **Prosedürel Adli Dedektif, Delil Tahtası & Hibrit AI Sorgu Simülatörü**
 
-[![Version](https://img.shields.io/badge/release-v1.2.0-dc2626?style=for-the-badge)](https://github.com/murasakimono/death-lead-acts/releases/latest)
+[![Version](https://img.shields.io/badge/release-v2.0.0-dc2626?style=for-the-badge)](https://github.com/murasakimono/death-lead-acts/releases/latest)
 [![Platform](https://img.shields.io/badge/Windows-x64-0f172a?style=for-the-badge&logo=windows)](https://github.com/murasakimono/death-lead-acts/releases/latest)
 [![Stack](https://img.shields.io/badge/Tauri_v2_+_Rust-10.8_MB-b91c1c?style=for-the-badge&logo=rust)](https://tauri.app)
 
@@ -49,18 +49,17 @@ Klasik "listeden rastgele katil seç" mantığı yerine; **olay yerini UV 365nm 
 * **Taktiksel Sorgu (Sıfır AI — Her PC'de çalışır):** Şüphelinin ifadesindeki çelişkiye tıkla, `SORGULA (Press)` ile sıkıştır veya elindeki kanıtı masaya çarp. Yanlış kanıt Savcılık İtibarını düşürür; doğru darbede poligraf nabzı fırlar ve gizli sır patlar.
 * **Canlı AI Sorgu (Ollama / OpenAI-Uyumlu API):** Lokal Ollama modelinle (örn. `qwen2.5:3b`, `llama3.2`) veya harici API ile şüpheliye serbest Türkçe sorular sor. Rust gerçeklik motoru şüphelinin yalan ve sır kurallarını kilitler — **kanıtı masaya koymadıkça kolay kolay çözülmez.**
 
-### 5. "Herkesin Bir Sırrı Var" & 3 Perde (Act I → II → III)
-* Sadece gerçek fail değil; masum şüpheliler de kendi kirli sırları (hırsızlık, yasak ilişki, veri sızdırma) yüzünden yalan söyler.
-* **ACT II Twist:** İlk çelişkileri kırdığında gecikmeli laboratuvar raporu düşer ve tablo tersine döner.
-* **ACT III — 4 Kilitli Final:** Davayı kapatmak için **Fail + Yöntem/Adli Kanıt + Alibi Çökerten Zaman Delili + Motivasyon** halkalarını eksiksiz kilitlemen gerekir.
-* **Seed Paylaşımı (`DLA-XXXXX`):** Aynı Seed kodunu arkadaşına atarak birebir aynı vakayı çözme yarışı yap.
-* **3 Zorluk & Dedektif Kariyeri:** `Dedektif`, `Cinayet Büro` ve `Süre Baskısı` modları; rütbe, XP, rozetler ve çözülen dosya arşivi.
+### 5. "Gölge Dosyası" 5 Bölümlük Hikâyeli Kampanya + Sonsuz Büro
+* **Gölge Dosyası Kampanyası (PROJE-KÜL Ağı):** Birbirine bağlı 5 bölümlük seri soruşturma. Her çözülen bölümden bir **İmza Delili** açılır ve 5. bölümde tüm olayların arkasındaki **Ana Beyin ("Mimar")** ile son hesaplaşma yaşanır.
+* **Ezber Kırıcı Sonlar & Yüzleştirme:** Sadece tek katil değil — **2 İşbirlikçi (Ortak Yalan / İkili Alibi)** ve nadir **Cinayet Değil (Kaza / İntihar)** dosyaları. İki şüpheliyi aynı odaya alıp yüzleştirerek ortak alibiyi çökert.
+* **Yakınlaştırmalı Nesne İnceleme & Atmosfer:** Çerçeveyi arka yüzüne çevirip el yazısı şifreleri oku, 3 parçalı yırtık notları birleştir, karanlık **Noir Müzik + Yağmur** atmosferini aç.
+* **Seed Paylaşımı (`DLA-XXXXX`) & Kariyer:** Aynı Seed kodunu arkadaşına atarak yarış; `Dedektif`, `Cinayet Büro` ve `Süre Baskısı` modlarında rütbe ve XP kas.
 
 ---
 
 ## İndirme & Kurulum (Windows)
 
-1. [Releases](https://github.com/murasakimono/death-lead-acts/releases/latest) sayfasından **`Death Lead Acts_1.2.0_x64-setup.exe`** (~10.8 MB) dosyasını indir.
+1. [Releases](https://github.com/murasakimono/death-lead-acts/releases/latest) sayfasından **`Death Lead Acts_2.0.0_x64-setup.exe`** (~10.8 MB) dosyasını indir.
 2. Kurulumu çalıştır ve doğrudan oyna.
 3. *(Opsiyonel — Canlı AI Sorgu için)* Bilgisayarında [Ollama](https://ollama.com) kuruluysa bir model indirip (`ollama pull qwen2.5:3b`) Sorgu Odası'ndan **Canlı AI Sorgu** sekmesine geçmen yeterli.
 

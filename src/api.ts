@@ -4,6 +4,7 @@ import type {
   AccusationSubmission,
   AiInterrogateRequest,
   AiInterrogateResponse,
+  CampaignChapter,
   CareerRecord,
   CareerStats,
   CaseFile,
@@ -13,6 +14,10 @@ import type {
   PinVerifyResult,
   PresentResult,
 } from './types';
+
+export async function apiGetCampaign(): Promise<CampaignChapter[]> {
+  return invoke<CampaignChapter[]>('get_campaign');
+}
 
 export async function apiNewCase(seed: string, difficulty: DifficultyMode = 'detective'): Promise<CaseFile> {
   return invoke<CaseFile>('new_case', { seed, difficulty });
@@ -60,8 +65,29 @@ export async function apiAiInterrogate(request: AiInterrogateRequest): Promise<A
   return invoke<AiInterrogateResponse>('ai_interrogate', { request });
 }
 
-// Local Detective Career Persistence
+// Local Detective Career & Campaign Persistence
 const CAREER_KEY = 'dla_career_v1';
+const CAMPAIGN_KEY = 'dla_campaign_solved_v2';
+
+export function loadSolvedChapters(): number[] {
+  try {
+    const raw = localStorage.getItem(CAMPAIGN_KEY);
+    if (raw) return JSON.parse(raw) as number[];
+  } catch {}
+  return [];
+}
+
+export function markChapterSolved(chapter: number): number[] {
+  const cur = loadSolvedChapters();
+  if (!cur.includes(chapter)) {
+    const next = [...cur, chapter].sort((a, b) => a - b);
+    try {
+      localStorage.setItem(CAMPAIGN_KEY, JSON.stringify(next));
+    } catch {}
+    return next;
+  }
+  return cur;
+}
 
 export function loadCareer(): CareerStats {
   try {
@@ -102,8 +128,58 @@ class NoirSoundEngine {
   private ctx: AudioContext | null = null;
   private rainNode: AudioNode | null = null;
   private rainGain: GainNode | null = null;
+  private droneTimer: number | null = null;
   public enabled = true;
   public ambientEnabled = false;
+  public musicEnabled = false;
+
+  public toggleNoirMusic(on: boolean) {
+    this.musicEnabled = on;
+    if (!on) {
+      if (this.droneTimer !== null) {
+        clearInterval(this.droneTimer);
+        this.droneTimer = null;
+      }
+      return;
+    }
+    const ctx = this.ensure();
+    if (!ctx || this.droneTimer !== null) return;
+    // Dark minor Neo-Noir piano/pad chord cycle (Dm9 -> Bbmaj7 -> Gm7 -> A7)
+    const chords = [
+      [146.83, 220.0, 261.63, 329.63],
+      [116.54, 174.61, 220.0, 293.66],
+      [98.0, 146.83, 174.61, 233.08],
+      [110.0, 164.81, 207.65, 261.63],
+    ];
+    let step = 0;
+    const playChord = () => {
+      if (!this.musicEnabled || !this.enabled) return;
+      const c = this.ensure();
+      if (!c) return;
+      const notes = chords[step % chords.length];
+      step++;
+      const now = c.currentTime;
+      notes.forEach((freq) => {
+        const osc = c.createOscillator();
+        const filter = c.createBiquadFilter();
+        const gain = c.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        filter.type = 'lowpass';
+        filter.frequency.value = 520;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.018, now + 1.4);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 5.6);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(c.destination);
+        osc.start(now);
+        osc.stop(now + 5.8);
+      });
+    };
+    playChord();
+    this.droneTimer = window.setInterval(playChord, 5800);
+  }
 
   private ensure(): AudioContext | null {
     if (!this.enabled) return null;
