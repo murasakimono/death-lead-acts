@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Link2, Trash2, RotateCcw, Pin } from 'lucide-react';
+import { Link2, Trash2, RotateCcw } from 'lucide-react';
 import { getPortraitUrl, type BoardLink, type BoardNodePos, type CaseFile, type PinnedQuote } from '../types';
 import { sfx } from '../api';
 
@@ -14,6 +14,8 @@ interface BoardViewProps {
   onRemoveLink: (linkId: string) => void;
   onResetLayout: () => void;
 }
+
+const TILTS = [-2.2, 1.4, -1.1, 2.0, -1.7, 1.2, -2.0, 1.6];
 
 export const BoardView: React.FC<BoardViewProps> = ({
   caseFile,
@@ -62,39 +64,42 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const onMouseMove = (e: React.MouseEvent) => {
     if (!draggingId || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const nx = Math.max(12, Math.min(rect.width - 225, e.clientX - rect.left - dragOffset.x));
-    const ny = Math.max(12, Math.min(rect.height - 120, e.clientY - rect.top - dragOffset.y));
+    const nx = Math.max(16, Math.min(rect.width - 210, e.clientX - rect.left - dragOffset.x));
+    const ny = Math.max(16, Math.min(rect.height - 150, e.clientY - rect.top - dragOffset.y));
     onMoveNode(draggingId, nx, ny);
   };
 
   const stopDrag = () => setDraggingId(null);
 
-  const cardCenter = (id: string) => {
+  const cardPinPoint = (id: string) => {
     const p = nodes[id] || { x: 80, y: 80 };
-    return { x: p.x + 108, y: p.y + 12 };
+    const isSuspect = caseFile.suspects.some((s) => s.id === id);
+    return { x: p.x + (isSuspect ? 86 : 108), y: p.y + 10 };
   };
 
   return (
-    <div className="h-full flex flex-col p-4 gap-3 overflow-hidden">
-      <div className="noir-panel px-4 py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono-tech text-red-400 uppercase tracking-widest mr-2">
-            KIRMIZI İP DELİL TAHTASI
+    <div className="h-full flex flex-col p-3.5 gap-3 overflow-hidden">
+      {/* Minimal Brass/Walnut Desk Toolbar */}
+      <div className="noir-panel px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="font-editorial italic text-sm text-[#D6C6A5] tracking-wide mr-2">
+            Soruşturma Panosu
           </span>
+          <div className="h-4 w-px bg-[#2E2922]" />
           {(['ÇELİŞKİ', 'BAĞLANTI', 'ALİBİ'] as const).map((mode) => {
             const active = connectMode === mode;
-            const colClass =
+            const col =
               mode === 'ÇELİŞKİ'
                 ? active
-                  ? 'bg-red-600/30 border-red-500 text-red-100'
-                  : 'border-slate-700 text-red-300'
+                  ? 'bg-[#8C1D1D] border-[#C42B2B] text-white'
+                  : 'border-[#3A2B28] text-[#D97777] hover:border-[#9E1B1B]'
                 : mode === 'BAĞLANTI'
                 ? active
-                  ? 'bg-sky-600/30 border-sky-400 text-sky-100'
-                  : 'border-slate-700 text-sky-300'
+                  ? 'bg-[#214252] border-[#7AA2B8] text-white'
+                  : 'border-[#27333A] text-[#8FB3C7] hover:border-[#7AA2B8]'
                 : active
-                ? 'bg-amber-600/30 border-amber-400 text-amber-100'
-                : 'border-slate-700 text-amber-300';
+                ? 'bg-[#5E481F] border-[#C49A52] text-white'
+                : 'border-[#3B3323] text-[#D1B072] hover:border-[#C49A52]';
             return (
               <button
                 key={mode}
@@ -103,19 +108,19 @@ export const BoardView: React.FC<BoardViewProps> = ({
                   setConnectFrom(null);
                   setConnectMode(active ? null : mode);
                 }}
-                className={`px-2.5 py-1 text-[11px] font-mono-tech uppercase border flex items-center gap-1.5 cursor-pointer transition ${colClass}`}
+                className={`px-2.5 py-1 text-[10px] font-mono-tech uppercase tracking-wider border flex items-center gap-1.5 cursor-pointer transition ${col}`}
               >
                 <Link2 className="w-3 h-3" />
-                {active ? `İP ÇEK: ${mode} (AKTİF)` : `${mode} İPİ`}
+                {active ? `İP ÇEK: ${mode}` : `${mode} İPİ`}
               </button>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono-tech">
+        <div className="flex items-center gap-3 text-[11px] font-mono-tech">
           {connectMode && (
-            <span className="text-amber-300 animate-pulse">
-              {connectFrom ? '2. kartı seç...' : '1. kartı seç...'}
+            <span className="text-[#D6B06C] animate-pulse">
+              {connectFrom ? 'Bağlanacak 2. karta tıkla...' : 'Başlangıç kartına tıkla...'}
             </span>
           )}
           <button
@@ -123,54 +128,53 @@ export const BoardView: React.FC<BoardViewProps> = ({
               sfx.click();
               onResetLayout();
             }}
-            className="px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1 bg-[#1A1815] border border-[#322D26] text-[#B8AE9B] hover:text-white flex items-center gap-1.5 cursor-pointer"
           >
-            <RotateCcw className="w-3 h-3" /> DİZİLİMİ SIFIRLA
+            <RotateCcw className="w-3 h-3" /> MASAYI TOPARLA
           </button>
         </div>
       </div>
 
+      {/* Physical Smoked Cork & Walnut Board */}
       <div
         ref={containerRef}
         onMouseMove={onMouseMove}
         onMouseUp={stopDrag}
         onMouseLeave={stopDrag}
-        className="flex-1 relative overflow-hidden border border-slate-800 bg-[#07090D] noir-grid"
+        className="flex-1 relative overflow-hidden border border-[#2C261F] cork-desk shadow-inner"
       >
-        {/* Gravity-Sagging Physical Strings */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+        {/* Woven Red/Amber/Slate Yarn with Board Shadow */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-30">
           {links.map((lk) => {
-            const a = cardCenter(lk.from);
-            const b = cardCenter(lk.to);
+            const a = cardPinPoint(lk.from);
+            const b = cardPinPoint(lk.to);
             const midX = (a.x + b.x) / 2;
             const dist = Math.hypot(b.x - a.x, b.y - a.y);
-            const sag = Math.min(75, dist * 0.17);
+            const sag = Math.min(82, dist * 0.19);
             const midY = (a.y + b.y) / 2 + sag;
             const path = `M ${a.x} ${a.y} Q ${midX} ${midY} ${b.x} ${b.y}`;
+            const shadowPath = `M ${a.x + 3} ${a.y + 8} Q ${midX + 3} ${midY + 12} ${b.x + 3} ${b.y + 8}`;
             return (
               <g key={lk.id} className="pointer-events-auto cursor-pointer" onClick={() => onRemoveLink(lk.id)}>
-                <path d={path} fill="none" stroke="rgba(0,0,0,0.75)" strokeWidth="5" />
-                <path d={path} fill="none" stroke={lk.color} strokeWidth="2.2" />
-                <circle cx={a.x} cy={a.y} r="3.5" fill={lk.color} />
-                <circle cx={b.x} cy={b.y} r="3.5" fill={lk.color} />
+                <path d={shadowPath} fill="none" stroke="rgba(0,0,0,0.48)" strokeWidth="3.5" />
+                <path d={path} fill="none" stroke={lk.color} strokeWidth="2.4" strokeLinecap="round" />
                 <rect
-                  x={midX - 31}
+                  x={midX - 32}
                   y={midY - 9}
-                  width="62"
-                  height="16"
-                  rx="1"
-                  fill="#090C12"
+                  width="64"
+                  height="17"
+                  fill="#171411"
                   stroke={lk.color}
                   strokeWidth="1"
                 />
                 <text
                   x={midX}
-                  y={midY + 2.5}
+                  y={midY + 3}
                   textAnchor="middle"
-                  fill={lk.color}
+                  fill="#EAE2CF"
                   fontSize="8.5"
-                  fontFamily="JetBrains Mono"
-                  fontWeight="700"
+                  fontFamily="IBM Plex Mono"
+                  fontWeight="600"
                 >
                   {lk.label}
                 </text>
@@ -179,103 +183,132 @@ export const BoardView: React.FC<BoardViewProps> = ({
           })}
         </svg>
 
-        {/* Noir Mugshot Suspect Cards */}
-        {caseFile.suspects.map((s) => {
-          const pos = nodes[s.id] || { x: 40, y: 40 };
+        {/* Tactile Polaroid Suspect Prints */}
+        {caseFile.suspects.map((s, idx) => {
+          const pos = nodes[s.id] || { x: 40 + idx * 200, y: 36 };
           const selected = connectFrom === s.id;
+          const tilt = TILTS[idx % TILTS.length];
           return (
             <div
               key={s.id}
               onMouseDown={(e) => startDrag(s.id, e)}
-              style={{ left: pos.x, top: pos.y }}
-              className={`absolute w-[216px] bg-[#10141C] border shadow-[0_14px_30px_rgba(0,0,0,0.7)] z-20 cursor-grab active:cursor-grabbing transition-shadow ${
-                selected ? 'border-red-500 ring-2 ring-red-500/40' : 'border-slate-700/90 hover:border-slate-500'
+              style={{
+                left: pos.x,
+                top: pos.y,
+                transform: `rotate(${draggingId === s.id ? 0 : tilt}deg)`,
+              }}
+              className={`absolute w-[172px] p-2 pb-3 polaroid-card z-20 cursor-grab active:cursor-grabbing transition-transform duration-150 ${
+                selected ? 'ring-2 ring-[#C42B2B] scale-[1.03]' : 'hover:scale-[1.02]'
               }`}
             >
-              <div className="px-2.5 py-1 bg-[#0B0E14] border-b border-slate-800 flex items-center justify-between">
-                <span className="text-[9px] font-mono-tech uppercase tracking-[0.18em] text-slate-400">
-                  DOSYA // {s.id.toUpperCase()}
-                </span>
-                <Pin className="w-3 h-3 text-red-500" />
-              </div>
-              <div className="p-2.5 flex items-center gap-2.5">
-                {/* Real Neo-Noir Photographic Mugshot */}
-                <div className="w-12 h-14 mugshot-bg border border-slate-700 relative overflow-hidden shrink-0">
-                  <img
-                    src={getPortraitUrl(s.portrait_index)}
-                    alt={s.name}
-                    draggable={false}
-                    className="w-full h-full object-cover contrast-115 brightness-95"
-                  />
+              {/* Red 3D Pushpin */}
+              <div className="pushpin-red absolute -top-1.5 left-1/2 -translate-x-1/2 z-30" />
+
+              <div className="w-full h-[126px] bg-[#0B0A09] overflow-hidden border border-[#2A2520] relative">
+                <img
+                  src={getPortraitUrl(s.portrait_index)}
+                  alt={s.name}
+                  draggable={false}
+                  className="w-full h-full object-cover contrast-110 saturate-75"
+                />
+                <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/75 text-[9px] font-mono-tech text-[#D6C6A5]">
+                  {s.handedness.toUpperCase()}
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white truncate">{s.name}</div>
-                  <div className="text-[10px] font-mono-tech text-slate-400 truncate">{s.role}</div>
-                  <div className="text-[9px] font-mono-tech text-sky-400 mt-0.5">
-                    {s.handedness.toUpperCase()} • {s.blood_type}
-                  </div>
+              </div>
+
+              <div className="pt-2 px-0.5">
+                <div className="font-typewriter text-[13px] font-bold text-[#181512] leading-tight truncate">
+                  {s.name}
+                </div>
+                <div className="text-[10px] font-mono-tech text-[#5A5043] truncate mt-0.5">
+                  {s.role} • {s.blood_type}
                 </div>
               </div>
             </div>
           );
         })}
 
-        {/* Forensic / Digital / Physical Evidence Cards */}
-        {visibleEvidence.map((ev) => {
-          const pos = nodes[ev.id] || { x: 100, y: 260 };
+        {/* Physical Paper / Thermal / UV Evidence Slips */}
+        {visibleEvidence.map((ev, idx) => {
+          const pos = nodes[ev.id] || { x: 60 + idx * 220, y: 265 };
           const selected = connectFrom === ev.id;
+          const tilt = TILTS[(idx + 3) % TILTS.length] * 0.85;
           const isDigital = ev.category === 'digital' || ev.category === 'secret';
-          const borderCol = selected
-            ? 'border-red-500 ring-2 ring-red-500/40'
-            : ev.is_uv_trace
-            ? 'border-purple-500/70 hover:border-purple-400'
-            : isDigital
-            ? 'border-sky-700/70 hover:border-sky-400'
-            : 'border-amber-700/60 hover:border-amber-400';
-
-          const headerBg = ev.is_uv_trace
-            ? 'bg-purple-950/40 text-purple-300'
-            : isDigital
-            ? 'bg-sky-950/35 text-sky-300'
-            : 'bg-amber-950/30 text-amber-300';
 
           return (
             <div
               key={ev.id}
               onMouseDown={(e) => startDrag(ev.id, e)}
-              style={{ left: pos.x, top: pos.y }}
-              className={`absolute w-[216px] bg-[#12161F] border shadow-[0_14px_30px_rgba(0,0,0,0.65)] z-20 cursor-grab active:cursor-grabbing ${borderCol}`}
+              style={{
+                left: pos.x,
+                top: pos.y,
+                transform: `rotate(${draggingId === ev.id ? 0 : tilt}deg)`,
+              }}
+              className={`absolute w-[216px] p-3 pt-4 z-20 cursor-grab active:cursor-grabbing transition-transform duration-150 ${
+                ev.is_uv_trace
+                  ? 'bg-[#171120] border border-purple-500/60 text-purple-100 shadow-2xl'
+                  : isDigital
+                  ? 'thermal-slip'
+                  : 'paper-slip'
+              } ${selected ? 'ring-2 ring-[#C42B2B] scale-[1.03]' : 'hover:scale-[1.02]'}`}
             >
-              <div className={`px-2.5 py-1 border-b border-slate-800/80 flex items-center justify-between ${headerBg}`}>
-                <span className="text-[10px] font-mono-tech font-bold tracking-wider">{ev.code}</span>
-                <Pin className="w-3 h-3" />
+              <div className={`${isDigital || ev.is_uv_trace ? 'pushpin-red' : 'pushpin-brass'} absolute -top-1.5 left-1/2 -translate-x-1/2`} />
+
+              <div className="flex items-center justify-between mb-1.5">
+                <span
+                  className={`text-[10px] font-mono-tech font-bold tracking-wider px-1.5 py-0.5 ${
+                    ev.is_uv_trace
+                      ? 'bg-purple-900/60 text-purple-200'
+                      : isDigital
+                      ? 'bg-[#1F2933] text-[#7AA2B8]'
+                      : 'border border-[#9E1B1B] text-[#9E1B1B]'
+                  }`}
+                >
+                  {ev.code}
+                </span>
+                {ev.timestamp && (
+                  <span className={`text-[9px] font-mono-tech ${isDigital || ev.is_uv_trace ? 'text-slate-400' : 'text-[#6B5E4B]'}`}>
+                    {ev.timestamp}
+                  </span>
+                )}
               </div>
-              <div className="p-2.5">
-                <div className="text-xs font-semibold text-slate-100 leading-snug mb-1">{ev.title}</div>
-                <div className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{ev.summary}</div>
+
+              <div
+                className={`text-xs font-bold leading-snug mb-1 ${
+                  isDigital || ev.is_uv_trace ? 'text-slate-100' : 'font-typewriter text-[#1A1612]'
+                }`}
+              >
+                {ev.title}
+              </div>
+              <div
+                className={`text-[10px] leading-relaxed line-clamp-2 ${
+                  isDigital || ev.is_uv_trace ? 'text-slate-400 font-mono-tech' : 'text-[#4A4033]'
+                }`}
+              >
+                {ev.summary}
               </div>
             </div>
           );
         })}
 
-        {/* Pinned AI Interrogation Quote Cards */}
-        {pinnedQuotes.map((pq) => {
-          const pos = nodes[pq.id] || { x: 60, y: 420 };
+        {/* Pinned AI Interrogation Quotes (Aged Index Slips) */}
+        {pinnedQuotes.map((pq, idx) => {
+          const pos = nodes[pq.id] || { x: 60 + idx * 220, y: 420 };
           const selected = connectFrom === pq.id;
           return (
             <div
               key={pq.id}
               onMouseDown={(e) => startDrag(pq.id, e)}
-              style={{ left: pos.x, top: pos.y }}
-              className={`absolute w-[220px] bg-[#191216] border shadow-xl z-20 cursor-grab active:cursor-grabbing ${
-                selected ? 'border-red-500 ring-2 ring-red-500/40' : 'border-red-800/70'
+              style={{ left: pos.x, top: pos.y, transform: `rotate(${TILTS[(idx + 2) % TILTS.length]}deg)` }}
+              className={`absolute w-[220px] p-3 pt-4 paper-slip border-l-4 !border-l-[#9E1B1B] z-20 cursor-grab active:cursor-grabbing ${
+                selected ? 'ring-2 ring-[#C42B2B]' : ''
               }`}
             >
-              <div className="px-2.5 py-1 bg-red-950/50 border-b border-red-900/60 flex items-center justify-between text-red-300">
-                <span className="text-[9px] font-mono-tech font-bold uppercase">İFADE // {pq.suspectName}</span>
-                <Pin className="w-3 h-3" />
+              <div className="pushpin-red absolute -top-1.5 left-1/2 -translate-x-1/2" />
+              <div className="text-[9px] font-mono-tech font-bold text-[#9E1B1B] uppercase mb-1">
+                İFADE KAYDI // {pq.suspectName}
               </div>
-              <div className="p-2.5 text-[11px] text-slate-200 italic leading-snug line-clamp-3">
+              <div className="font-typewriter text-[11px] text-[#1C1814] leading-snug line-clamp-3">
                 &ldquo;{pq.text}&rdquo;
               </div>
             </div>
@@ -283,8 +316,8 @@ export const BoardView: React.FC<BoardViewProps> = ({
         })}
 
         {links.length > 0 && (
-          <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/80 border border-slate-800 text-[10px] font-mono-tech text-slate-400 flex items-center gap-1.5 z-30">
-            <Trash2 className="w-3 h-3 text-red-400" /> İpi silmek için etiketine tıkla
+          <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-[#12100E]/90 border border-[#322C24] text-[10px] font-mono-tech text-[#B8AE9B] flex items-center gap-1.5 z-40">
+            <Trash2 className="w-3 h-3 text-[#C42B2B]" /> İpi kaldırmak için etiketine tıkla
           </div>
         )}
       </div>

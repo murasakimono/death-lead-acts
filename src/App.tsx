@@ -47,12 +47,13 @@ function randomSeed(): string {
 function defaultBoardLayout(cf: CaseFile): Record<string, BoardNodePos> {
   const map: Record<string, BoardNodePos> = {};
   cf.suspects.forEach((s, i) => {
-    map[s.id] = { id: s.id, x: 26 + i * 232, y: 24 };
+    // Organic staggered Polaroid pinning rather than a rigid Excel row
+    map[s.id] = { id: s.id, x: 46 + i * 212, y: 26 + (i % 2 === 0 ? 0 : 18) };
   });
   cf.evidence.forEach((ev, i) => {
-    const col = i % 5;
-    const row = Math.floor(i / 5);
-    map[ev.id] = { id: ev.id, x: 26 + col * 232, y: 175 + row * 128 };
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    map[ev.id] = { id: ev.id, x: 54 + col * 255 + (row % 2) * 28, y: 255 + row * 140 + (col % 2) * 14 };
   });
   return map;
 }
@@ -220,37 +221,36 @@ export function App() {
     `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#07090C] text-[#E6E8EC] overflow-hidden noir-grain noir-vignette">
-      {/* Thin Top Case Strip */}
-      <header className="h-14 px-3 border-b border-slate-800/90 bg-[#0B0E14] flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-3">
+    <div className="h-screen w-screen flex flex-col bg-[#0D0C0B] text-[#E6E0D4] overflow-hidden noir-grain noir-vignette">
+      {/* Editorial Matte Noir Desk Header (Zero generic SaaS pill clutter) */}
+      <header className="h-14 px-4 border-b border-[#2A251E] bg-[#12100E] flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => { sfx.click(); setScreen('menu'); }}
-            className="p-1.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            className="p-1.5 text-[#8E8473] hover:text-[#E6E0D4] transition cursor-pointer"
             title="Ana Menü"
           >
             <Home className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="text-[11px] font-bold tracking-[0.2em] text-white uppercase flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-600 inline-block shadow-[0_0_10px_#DC2626]" />
+          <div className="leading-tight">
+            <div className="font-editorial text-sm font-bold tracking-[0.14em] text-[#EAE2CF] uppercase">
               DEATH LEAD ACTS
             </div>
-            <div className="text-[10px] font-mono-tech text-slate-400">
+            <div className="text-[10px] font-mono-tech text-[#9A8F7D]">
               {caseFile.case_code} • {caseFile.crime_type}
             </div>
           </div>
 
-          <div className="h-6 w-px bg-slate-800" />
+          <div className="h-5 w-px bg-[#2C261F]" />
 
-          <div className="flex items-center gap-1">
+          <nav className="flex items-center gap-1">
             {[
-              { id: 'scene', label: 'OLAY YERİ', icon: Map },
-              { id: 'forensics', label: 'ADLİ & LAB', icon: Microscope },
-              { id: 'board', label: 'TAHTA', icon: Network },
-              { id: 'timeline', label: 'KRONOLOJİ', icon: Clock },
-              { id: 'interrogation', label: 'SORGU', icon: Users },
+              { id: 'scene', label: 'Olay Yeri', icon: Map },
+              { id: 'forensics', label: 'Adli Lab', icon: Microscope },
+              { id: 'board', label: 'Pano', icon: Network },
+              { id: 'timeline', label: 'Kronoloji', icon: Clock },
+              { id: 'interrogation', label: 'Sorgu', icon: Users },
             ].map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -258,10 +258,10 @@ export function App() {
                 <button
                   key={tab.id}
                   onClick={() => { sfx.click(); setActiveTab(tab.id as DeskTab); }}
-                  className={`px-2.5 py-1.5 text-[11px] font-mono-tech uppercase tracking-wider border flex items-center gap-1.5 transition cursor-pointer ${
+                  className={`px-3 py-1.5 text-[11px] font-mono-tech uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer border-b-2 ${
                     active
-                      ? 'bg-red-600/20 border-red-500 text-white'
-                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-100 hover:bg-slate-900'
+                      ? 'border-[#B91C1C] text-[#F5EFE2] bg-[#1C1915]'
+                      : 'border-transparent text-[#8F8575] hover:text-[#E6E0D4]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -269,78 +269,74 @@ export function App() {
                 </button>
               );
             })}
-          </div>
+          </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {remainingSec !== null && (
-            <div className={`px-2.5 py-1 border font-mono-tech text-xs font-bold ${remainingSec < 120 ? 'bg-red-950/60 border-red-500 text-red-300 animate-pulse' : 'bg-slate-900 border-amber-700 text-amber-300'}`}>
-              ⏱ {fmtTimer(remainingSec)}
-            </div>
+            <span className={`font-mono-tech text-xs font-bold ${remainingSec < 120 ? 'text-[#E04F4F] animate-pulse' : 'text-[#D6B06C]'}`}>
+              {fmtTimer(remainingSec)}
+            </span>
           )}
 
-          <div className="px-2 py-1 bg-slate-900 border border-slate-700 text-[10px] font-mono-tech text-amber-300">
+          <span className="text-[10px] font-mono-tech text-[#C49A52] tracking-widest uppercase">
             ACT {currentAct === 1 ? 'I' : currentAct === 2 ? 'II' : 'III'}
-          </div>
+          </span>
 
-          {/* Prosecutor Reputation */}
-          <div title="Savcılık İtibarı" className="flex items-center gap-1 px-2 py-1 bg-slate-900 border border-slate-800">
-            <Shield className="w-3.5 h-3.5 text-sky-400 mr-0.5" />
+          <div title="Savcılık İtibarı" className="flex items-center gap-1">
+            <Shield className="w-3.5 h-3.5 text-[#7AA2B8] mr-0.5" />
             {Array.from({ length: caseFile.max_reputation }).map((_, idx) => (
-              <span key={idx} className={`w-1.5 h-2.5 ${idx < reputation ? 'bg-sky-400' : 'bg-slate-700'}`} />
+              <span key={idx} className={`w-1.5 h-2.5 ${idx < reputation ? 'bg-[#C49A52]' : 'bg-[#2C261F]'}`} />
             ))}
           </div>
 
-          {/* Limited Case Hints */}
+          <div className="h-4 w-px bg-[#2C261F]" />
+
           <button
             onClick={handleUseHint}
-            title="Vaka İpucu (Sınırlı Hak)"
-            className="px-2 py-1.5 bg-slate-900 border border-slate-800 hover:border-amber-500 text-[10px] font-mono-tech text-amber-300 flex items-center gap-1 cursor-pointer"
+            title="Vaka İpucu"
+            className="text-[10px] font-mono-tech text-[#C49A52] hover:text-[#F5EFE2] flex items-center gap-1 cursor-pointer"
           >
-            <Lightbulb className="w-3.5 h-3.5" /> {caseFile.max_hints - hintsUsed}/{caseFile.max_hints}
+            <Lightbulb className="w-3.5 h-3.5" /> {caseFile.max_hints - hintsUsed}
           </button>
 
-          {/* Personal Detective Notebook */}
           <button
             onClick={() => { sfx.click(); setShowNotebook((v) => !v); }}
-            title="Kişisel Dedektif Not Defteri"
-            className={`px-2 py-1.5 border text-[10px] font-mono-tech flex items-center gap-1 cursor-pointer ${
-              showNotebook ? 'bg-amber-600/25 border-amber-400 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
+            title="Dedektif Not Defteri"
+            className={`text-[10px] font-mono-tech flex items-center gap-1 cursor-pointer ${
+              showNotebook ? 'text-[#F5EFE2] underline' : 'text-[#9A8F7D] hover:text-[#F5EFE2]'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" /> NOT
           </button>
 
-          {/* Ambient Rain & Noir Music Toggles */}
           <button
             onClick={handleToggleAmbient}
-            title="Yağmur & Gece Atmosferi"
-            className={`p-1.5 border cursor-pointer ${ambientOn ? 'bg-sky-900/40 border-sky-400 text-sky-300' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}
+            title="Yağmur Atmosferi"
+            className={`p-1 cursor-pointer ${ambientOn ? 'text-[#7AA2B8]' : 'text-[#6F6658] hover:text-[#E6E0D4]'}`}
           >
-            <CloudRain className="w-4 h-4" />
+            <CloudRain className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleToggleMusic}
-            title="Karanlık Noir Müzik"
-            className={`p-1.5 border cursor-pointer ${musicOn ? 'bg-purple-900/40 border-purple-400 text-purple-300' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}
+            title="Noir Müzik"
+            className={`p-1 cursor-pointer ${musicOn ? 'text-[#C49A52]' : 'text-[#6F6658] hover:text-[#E6E0D4]'}`}
           >
-            <Music className="w-4 h-4" />
+            <Music className="w-3.5 h-3.5" />
           </button>
-
-          {/* SFX Toggle */}
           <button
             onClick={() => { const next = !soundOn; setSoundOn(next); sfx.enabled = next; }}
-            className="p-1.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            className="p-1 text-[#6F6658] hover:text-[#E6E0D4] cursor-pointer"
             title="Ses Efektleri"
           >
-            {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {soundOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
           </button>
 
           <button
             onClick={() => { sfx.click(); setShowAccusation(true); }}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[11px] font-mono-tech font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer animate-pulse-crimson"
+            className="px-3.5 py-1.5 bg-[#8C1D1D] hover:bg-[#A62323] border border-[#C42B2B] text-[#F8F3E8] text-[11px] font-mono-tech font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer transition"
           >
-            <Gavel className="w-3.5 h-3.5" /> SUÇLA
+            <Gavel className="w-3.5 h-3.5" /> HÜKÜM VER
           </button>
         </div>
       </header>

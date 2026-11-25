@@ -363,20 +363,8 @@ export interface CareerStats {
 }
 
 export function getPortraitUrl(portraitIndex: number): string {
-  // Strictly unique gender-aligned mapping across 5 suspects (3F + 2M -> p0,p2,p4 + p1,p3)
-  const map: Record<number, number> = {
-    0: 0,
-    2: 2,
-    4: 4,
-    6: 0,
-    8: 2,
-    1: 1,
-    3: 3,
-    5: 1,
-    7: 3,
-    9: 1,
-  };
-  return `/assets/portraits/p${map[portraitIndex] ?? (portraitIndex % 5)}.jpg`;
+  // Backend now assigns strictly unique 0..4 per case
+  return `/assets/portraits/p${portraitIndex % 5}.jpg`;
 }
 
 export function getSceneUrl(venueIndex: number): string {

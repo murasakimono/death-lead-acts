@@ -306,20 +306,22 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
     let victim_role = venue.victim_roles[rng.gen_range(0..venue.victim_roles.len())];
     let victim_age = rng.gen_range(44..64);
 
-    // Guarantee 5 suspects with 5 strictly unique visual portraits (3 female: 0,2,4,6,8 + 2 male: 1,3,5,7,9)
+    // Guarantee 5 suspects with 5 strictly unique visual portraits:
+    // 3 female suspects -> portraits 0, 2, 4 | 2 male suspects -> portraits 1, 3
     let mut female_pool: Vec<usize> = vec![0, 2, 4, 6, 8];
     let mut male_pool: Vec<usize> = vec![1, 3, 5, 7, 9];
     female_pool.shuffle(&mut rng);
     male_pool.shuffle(&mut rng);
-    let mut chosen_vec = vec![
-        female_pool[0],
-        male_pool[0],
-        female_pool[1],
-        male_pool[1],
-        female_pool[2],
+    let mut chosen_pairs: Vec<(usize, usize)> = vec![
+        (female_pool[0], 0),
+        (male_pool[0], 1),
+        (female_pool[1], 2),
+        (male_pool[1], 3),
+        (female_pool[2], 4),
     ];
-    chosen_vec.shuffle(&mut rng);
-    let chosen = &chosen_vec[0..5];
+    chosen_pairs.shuffle(&mut rng);
+    let chosen: Vec<usize> = chosen_pairs.iter().map(|(idx, _)| *idx).collect();
+    let assigned_portraits: Vec<usize> = chosen_pairs.iter().map(|(_, p)| *p).collect();
 
     let killer_slot = rng.gen_range(0..5);
     let mut red_herring_slots: Vec<usize> = (0..5).filter(|&i| i != killer_slot).collect();
@@ -694,6 +696,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
     for i in 0..5 {
         let p_idx = chosen[i];
+        let portrait_asset_idx = assigned_portraits[i];
         let (name, role, age, blood, archetype, accent) = SUSPECT_POOL[p_idx];
         let sid = suspect_ids[i].clone();
         let hand = suspect_hands[i].clone();
@@ -764,7 +767,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
             suspects.push(Suspect {
                 id: sid.clone(),
-                portrait_index: p_idx,
+                portrait_index: portrait_asset_idx,
                 name: name.to_string(),
                 role: role.to_string(),
                 age,
@@ -850,7 +853,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
             suspects.push(Suspect {
                 id: sid.clone(),
-                portrait_index: p_idx,
+                portrait_index: portrait_asset_idx,
                 name: name.to_string(),
                 role: role.to_string(),
                 age,
@@ -925,7 +928,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
             suspects.push(Suspect {
                 id: sid.clone(),
-                portrait_index: p_idx,
+                portrait_index: portrait_asset_idx,
                 name: name.to_string(),
                 role: role.to_string(),
                 age,
@@ -989,7 +992,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             ];
             suspects.push(Suspect {
                 id: sid.clone(),
-                portrait_index: p_idx,
+                portrait_index: portrait_asset_idx,
                 name: name.to_string(),
                 role: role.to_string(),
                 age,
@@ -1043,7 +1046,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             ];
             suspects.push(Suspect {
                 id: sid.clone(),
-                portrait_index: p_idx,
+                portrait_index: portrait_asset_idx,
                 name: name.to_string(),
                 role: role.to_string(),
                 age,
