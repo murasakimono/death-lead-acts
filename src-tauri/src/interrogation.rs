@@ -54,6 +54,74 @@ pub fn verify_present_evidence(
     }
 }
 
+pub fn run_confrontation(seed: &str, suspect_a_id: &str, suspect_b_id: &str) -> ConfrontationResult {
+    let (case_file, truth) = generate_case(seed, "detective");
+    let sa = case_file.suspects.iter().find(|s| s.id == suspect_a_id);
+    let sb = case_file.suspects.iter().find(|s| s.id == suspect_b_id);
+    let (Some(a), Some(b)) = (sa, sb) else {
+        return ConfrontationResult {
+            dramatic_hit: false,
+            pulse_spike: 0,
+            dialogue: vec!["Yüzleştirilecek şüpheliler bulunamadı.".to_string()],
+            revealed_secret: None,
+            unlocked_evidence_id: None,
+        };
+    };
+
+    // Case 1: Confronting Killer + Accomplice (Breaks their dual alibi!)
+    if let Some(acc_id) = &truth.accomplice_id {
+        let pair_match = (a.id == truth.killer_id && b.id == *acc_id)
+            || (b.id == truth.killer_id && a.id == *acc_id);
+        if pair_match {
+            return ConfrontationResult {
+                dramatic_hit: true,
+                pulse_spike: 58,
+                dialogue: vec![
+                    format!("{}: \"Dedektif, az önce söyledik — o saatte ikimiz birlikteydik!\"", a.name),
+                    format!("{}: \"...Hayır, dur! Ben sadece koridor kamerasını oyaladım, içeri girip {}'yi öldüreceğini bilmiyordum!\"", b.name, case_file.victim_name),
+                    format!("{}: \"Kapa çeneni! Anlaşmamız böyle değildi, ikimizi de yaktın!\"", a.name),
+                ],
+                revealed_secret: Some(format!(
+                    "ORTAK YALAN ÇÖKTÜ! {} ve {} işbirlikçi — sahte ikili alibi kurmuşlar!",
+                    a.name, b.name
+                )),
+                unlocked_evidence_id: Some("ev_act2_lab".to_string()),
+            };
+        }
+    }
+
+    // Case 2: Confronting Killer + Witness/Red Herring who saw them
+    if a.id == truth.killer_id || b.id == truth.killer_id {
+        let killer = if a.id == truth.killer_id { a } else { b };
+        let other = if a.id == truth.killer_id { b } else { a };
+        return ConfrontationResult {
+            dramatic_hit: true,
+            pulse_spike: 34,
+            dialogue: vec![
+                format!("{}: \"Yüzüme bak {}! O gece koridorda seni gördüm, evde değildin!\"", other.name, killer.name),
+                format!("{}: \"Saçmalama! Kendi pisliğini örtmek için bana iftira atıyorsun dedektif, buna inanmayın!\"", killer.name),
+            ],
+            revealed_secret: Some(format!(
+                "YÜZLEŞTİRME ÇATIŞMASI: {} doğrudan {} aleyhine tanıklık etti; {} nabzı fırladı.",
+                other.name, killer.name, killer.name
+            )),
+            unlocked_evidence_id: None,
+        };
+    }
+
+    // Case 3: Two innocent suspects
+    ConfrontationResult {
+        dramatic_hit: false,
+        pulse_spike: 8,
+        dialogue: vec![
+            format!("{}: \"Bizi neden aynı odaya aldınız dedektif? {} ile o gece hiç karşılaşmadık.\"", a.name, b.name),
+            format!("{}: \"Doğru söylüyor, asıl diğerlerinin saatlerini ve telefon kayıtlarını çaprazlayın.\"", b.name),
+        ],
+        revealed_secret: None,
+        unlocked_evidence_id: None,
+    }
+}
+
 pub fn verify_phone_pin(seed: &str, pin: &str) -> PinVerifyResult {
     let (case_file, truth) = generate_case(seed, "detective");
     if pin.trim() == truth.phone_pin {
@@ -65,7 +133,7 @@ pub fn verify_phone_pin(seed: &str, pin: &str) -> PinVerifyResult {
     } else {
         PinVerifyResult {
             unlocked: false,
-            message: "HATALI PIN — Olay yerindeki masa çerçevesi / not ipucunu (OLY-02) kontrol et.".to_string(),
+            message: "HATALI PIN — Olay yerindeki çerçeveyi arka yüzüne çevirip el yazısı notu oku (OLY-02).".to_string(),
             unlocked_evidence_ids: vec![],
         }
     }
@@ -82,7 +150,7 @@ pub fn verify_safe_combo(seed: &str, c1: u8, c2: u8, c3: u8) -> PinVerifyResult 
     } else {
         PinVerifyResult {
             unlocked: false,
-            message: "HATALI KOMBİNASYON — OLY-02 notunun arka yüzündeki 3 kadran sayısını kontrol et.".to_string(),
+            message: "HATALI KOMBİNASYON — OLY-02 çerçevesinin arka yüzündeki 3 kadran sayısını kontrol et.".to_string(),
             unlocked_evidence_ids: vec![],
         }
     }
@@ -100,10 +168,22 @@ pub fn verify_accusation(sub: AccusationSubmission) -> AccusationResult {
             .unwrap_or_else(|| id.to_string())
     };
 
-    let c1 = sub.killer_id == truth.killer_id;
+    let verdict_ok = sub.verdict_type == truth.resolution_type;
+
+    let c1 = if truth.resolution_type == "accident_suicide" {
+        verdict_ok
+    } else if truth.resolution_type == "accomplice" {
+        verdict_ok
+            && sub.killer_id == truth.killer_id
+            && sub.accomplice_id.as_deref() == truth.accomplice_id.as_deref()
+    } else {
+        verdict_ok && sub.killer_id == truth.killer_id
+    };
+
     let c2 = sub.method_evidence_id == truth.method_evidence_id
         || sub.method_evidence_id == "ev_act2_lab"
-        || sub.method_evidence_id == "ev_chem_match";
+        || sub.method_evidence_id == "ev_chem_match"
+        || sub.method_evidence_id == "ev_autopsy";
     let c3 = sub.alibi_evidence_id == truth.alibi_evidence_id
         || sub.alibi_evidence_id == "ev_audio_clean";
     let c4 = sub.motive_evidence_id == truth.motive_evidence_id
@@ -117,19 +197,30 @@ pub fn verify_accusation(sub: AccusationSubmission) -> AccusationResult {
         4 => "S — KUSURSUZ ADLİ ÇÖZÜM",
         3 => "A — YAKIN AMA EKSİK KİLİT",
         2 => "B — YARIM DAVA (SAVCILIK İADESİ)",
-        _ => "F — DAVA ÇÖKTÜ (FAİL KAÇTI)",
+        _ => "F — DAVA ÇÖKTÜ (YANLIŞ HÜKÜM)",
     }
     .to_string();
+
+    let lock1_expected = match truth.resolution_type.as_str() {
+        "accident_suicide" => "CİNAYET DEĞİL — Kaza / İntihar Dosyası".to_string(),
+        "accomplice" => format!(
+            "2 İŞBİRLİKÇİ: {} + {}",
+            truth.killer_name,
+            truth.accomplice_name.clone().unwrap_or_default()
+        ),
+        _ => format!("TEK FAİL: {}", truth.killer_name),
+    };
 
     AccusationResult {
         solved,
         score,
         rank,
+        resolution_type: truth.resolution_type,
         locks: vec![
             LockCheck {
-                label: "1. Kilit — Gerçek Fail".to_string(),
+                label: "1. Kilit — Hüküm & Fail(ler)".to_string(),
                 correct: c1,
-                expected_hint: truth.killer_name.clone(),
+                expected_hint: lock1_expected,
             },
             LockCheck {
                 label: "2. Kilit — Yöntem & Adli Kanıt".to_string(),
@@ -137,17 +228,18 @@ pub fn verify_accusation(sub: AccusationSubmission) -> AccusationResult {
                 expected_hint: find_ev_title(&truth.method_evidence_id),
             },
             LockCheck {
-                label: "3. Kilit — Alibi Çökerten Zaman Delili".to_string(),
+                label: "3. Kilit — Alibi / Zaman Delili".to_string(),
                 correct: c3,
                 expected_hint: find_ev_title(&truth.alibi_evidence_id),
             },
             LockCheck {
-                label: "4. Kilit — Motivasyon Kanıtı".to_string(),
+                label: "4. Kilit — Motivasyon / Arka Plan".to_string(),
                 correct: c4,
                 expected_hint: find_ev_title(&truth.motive_evidence_id),
             },
         ],
         killer_name: truth.killer_name,
+        accomplice_name: truth.accomplice_name,
         method_summary: truth.method_summary,
         motive_summary: truth.motive_summary,
         chronological_reveal: truth.chronological_reveal,
@@ -173,17 +265,9 @@ pub async fn check_ollama(endpoint: &str) -> OllamaStatus {
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
-                OllamaStatus {
-                    online: true,
-                    models,
-                    error: None,
-                }
+                OllamaStatus { online: true, models, error: None }
             } else {
-                OllamaStatus {
-                    online: true,
-                    models: vec![],
-                    error: None,
-                }
+                OllamaStatus { online: true, models: vec![], error: None }
             }
         }
         Ok(res) => OllamaStatus {
@@ -231,7 +315,7 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
         1. Sadece karakterine uygun, gergin, kısa ve doğal Türkçe cevap ver (2-4 cümle).\n\
         2. Oyuncu yalanını çürüten SOMUT KANITI masaya koymadıkça ASLA suçunu veya sırrını itiraf etme; kıvır, savunmaya geç veya başka birinden şüphelen.\n\
         3. Masaya konulan kanıt yalanını çürütüyorsa panikle, savunma değiştir veya sadece o spesifik sırrı kabul et.\n\
-        4. Gerçek fail olsan bile kolayca teslim olma; köşeye sıkışınca tereddüt et veya avukat iste.",
+        4. Gerçek fail/işbirlikçi olsan bile kolayca teslim olma; köşeye sıkışınca tereddüt et veya avukat iste.",
         suspect.name,
         suspect.role,
         suspect.age,
@@ -251,21 +335,11 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
         }
     );
 
-    let mut messages = vec![serde_json::json!({
-        "role": "system",
-        "content": system_prompt
-    })];
-
+    let mut messages = vec![serde_json::json!({ "role": "system", "content": system_prompt })];
     for h in req.history.iter().rev().take(10).rev() {
-        messages.push(serde_json::json!({
-            "role": h.role,
-            "content": h.content
-        }));
+        messages.push(serde_json::json!({ "role": h.role, "content": h.content }));
     }
-    messages.push(serde_json::json!({
-        "role": "user",
-        "content": req.user_message
-    }));
+    messages.push(serde_json::json!({ "role": "user", "content": req.user_message }));
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(45))
@@ -286,18 +360,9 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
     }
 
     let payload = if is_openai_style {
-        serde_json::json!({
-            "model": req.model_name,
-            "messages": messages,
-            "temperature": 0.7
-        })
+        serde_json::json!({ "model": req.model_name, "messages": messages, "temperature": 0.7 })
     } else {
-        serde_json::json!({
-            "model": req.model_name,
-            "messages": messages,
-            "stream": false,
-            "options": { "temperature": 0.7 }
-        })
+        serde_json::json!({ "model": req.model_name, "messages": messages, "stream": false, "options": { "temperature": 0.7 } })
     };
 
     let resp = builder
@@ -312,21 +377,13 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
 
     let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
     let reply = if is_openai_style {
-        body["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("...")
-            .trim()
-            .to_string()
+        body["choices"][0]["message"]["content"].as_str().unwrap_or("...").trim().to_string()
     } else {
-        body["message"]["content"]
-            .as_str()
-            .unwrap_or("...")
-            .trim()
-            .to_string()
+        body["message"]["content"].as_str().unwrap_or("...").trim().to_string()
     };
 
-    let pulse_hint = if !req.presented_evidence_ids.is_empty() && s_truth.is_killer {
-        26
+    let pulse_hint = if !req.presented_evidence_ids.is_empty() && (s_truth.is_killer || s_truth.is_accomplice) {
+        28
     } else if !req.presented_evidence_ids.is_empty() {
         14
     } else {

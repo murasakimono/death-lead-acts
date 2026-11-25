@@ -1,11 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Link2, Trash2, RotateCcw, Pin } from 'lucide-react';
-import { getPortraitUrl, type BoardLink, type BoardNodePos, type CaseFile } from '../types';
+import { getPortraitUrl, type BoardLink, type BoardNodePos, type CaseFile, type PinnedQuote } from '../types';
 import { sfx } from '../api';
 
 interface BoardViewProps {
   caseFile: CaseFile;
   unlockedEvidence: Set<string>;
+  pinnedQuotes?: PinnedQuote[];
   nodes: Record<string, BoardNodePos>;
   links: BoardLink[];
   onMoveNode: (id: string, x: number, y: number) => void;
@@ -17,6 +18,7 @@ interface BoardViewProps {
 export const BoardView: React.FC<BoardViewProps> = ({
   caseFile,
   unlockedEvidence,
+  pinnedQuotes = [],
   nodes,
   links,
   onMoveNode,
@@ -251,6 +253,30 @@ export const BoardView: React.FC<BoardViewProps> = ({
               <div className="p-2.5">
                 <div className="text-xs font-semibold text-slate-100 leading-snug mb-1">{ev.title}</div>
                 <div className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{ev.summary}</div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Pinned AI Interrogation Quote Cards */}
+        {pinnedQuotes.map((pq) => {
+          const pos = nodes[pq.id] || { x: 60, y: 420 };
+          const selected = connectFrom === pq.id;
+          return (
+            <div
+              key={pq.id}
+              onMouseDown={(e) => startDrag(pq.id, e)}
+              style={{ left: pos.x, top: pos.y }}
+              className={`absolute w-[220px] bg-[#191216] border shadow-xl z-20 cursor-grab active:cursor-grabbing ${
+                selected ? 'border-red-500 ring-2 ring-red-500/40' : 'border-red-800/70'
+              }`}
+            >
+              <div className="px-2.5 py-1 bg-red-950/50 border-b border-red-900/60 flex items-center justify-between text-red-300">
+                <span className="text-[9px] font-mono-tech font-bold uppercase">İFADE // {pq.suspectName}</span>
+                <Pin className="w-3 h-3" />
+              </div>
+              <div className="p-2.5 text-[11px] text-slate-200 italic leading-snug line-clamp-3">
+                &ldquo;{pq.text}&rdquo;
               </div>
             </div>
           );

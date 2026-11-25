@@ -10,9 +10,11 @@ import {
   Swords,
   CheckCircle2,
   RefreshCw,
+  Users,
+  Pin,
 } from 'lucide-react';
-import { apiAiInterrogate, apiGetOllamaStatus, apiPresentEvidence, sfx } from '../api';
-import { getPortraitUrl, type AiChatMessage, type CaseFile, type OllamaStatus, type Statement } from '../types';
+import { apiAiInterrogate, apiConfrontSuspects, apiGetOllamaStatus, apiPresentEvidence, sfx } from '../api';
+import { getPortraitUrl, type AiChatMessage, type CaseFile, type ConfrontationResult, type OllamaStatus, type Statement } from '../types';
 
 interface InterrogationViewProps {
   caseFile: CaseFile;
@@ -22,6 +24,8 @@ interface InterrogationViewProps {
   revealedSecrets: Record<string, string[]>;
   onContradictionHit: (suspectId: string, statementId: string, secret: string | null) => void;
   onReputationChange: (delta: number) => void;
+  onPinQuote?: (suspectName: string, text: string) => void;
+  onConfrontUnlock?: (secret: string | null, evidenceId: string | null) => void;
 }
 
 export const InterrogationView: React.FC<InterrogationViewProps> = ({
@@ -32,9 +36,13 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
   revealedSecrets,
   onContradictionHit,
   onReputationChange,
+  onPinQuote,
+  onConfrontUnlock,
 }) => {
   const [selectedSuspectId, setSelectedSuspectId] = useState(caseFile.suspects[0]?.id ?? 's1');
-  const [mode, setMode] = useState<'tactical' | 'ai'>('tactical');
+  const [mode, setMode] = useState<'tactical' | 'ai' | 'confront'>('tactical');
+  const [confrontOtherId, setConfrontOtherId] = useState(caseFile.suspects[1]?.id ?? 's2');
+  const [confrontRes, setConfrontRes] = useState<ConfrontationResult | null>(null);
   const [selectedStatement, setSelectedStatement] = useState<Statement | null>(null);
   const [pressLog, setPressLog] = useState<string | null>(null);
   const [hitFlash, setHitFlash] = useState(false);
@@ -375,7 +383,21 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                   : 'bg-slate-900 border-slate-700 text-slate-400'
               }`}
             >
-              <Bot className="w-3.5 h-3.5" /> CANLI AI SORGU (OLLAMA / API)
+              <Bot className="w-3.5 h-3.5" /> CANLI AI
+            </button>
+            <button
+              onClick={() => {
+                sfx.click();
+                setMode('confront');
+                setConfrontRes(null);
+              }}
+              className={`px-3 py-1.5 text-xs font-mono-tech uppercase border flex items-center gap-1.5 cursor-pointer ${
+                mode === 'confront'
+                  ? 'bg-amber-600/25 border-amber-400 text-white'
+                  : 'bg-slate-900 border-slate-700 text-slate-400'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" /> YÜZLEŞTİRME
             </button>
           </div>
           <div className="text-[11px] font-mono-tech text-slate-500 flex items-center gap-1.5">
@@ -488,7 +510,7 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
               </div>
             </div>
           </div>
-        ) : (
+        ) : mode === 'ai' ? (
           /* Live AI Interrogation Mode */
           <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
             {/* Ollama / API Config Bar */}
@@ -578,8 +600,19 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                         : 'bg-[#12161F] border-slate-700 text-slate-100'
                     }`}
                   >
-                    <div className="text-[10px] font-mono-tech text-slate-400 mb-1 uppercase">
-                      {m.role === 'user' ? 'DEDEKTİF' : suspect.name}
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-mono-tech text-slate-400 mb-1 uppercase">
+                      <span>{m.role === 'user' ? 'DEDEKTİF' : suspect.name}</span>
+                      {m.role === 'assistant' && onPinQuote && (
+                        <button
+                          onClick={() => {
+                            sfx.click();
+                            onPinQuote(suspect.name, m.content);
+                          }}
+                          className="text-[9px] text-amber-400 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Pin className="w-2.5 h-2.5" /> TAHTAYA PİNLE
+                        </button>
+                      )}
                     </div>
                     {m.content}
                   </div>
@@ -614,6 +647,78 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                 <Send className="w-3.5 h-3.5" /> SOR
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {mode === 'confront' && (
+          <div className="flex-1 flex flex-col p-5 gap-4 overflow-y-auto">
+            <div className="text-xs font-mono-tech text-amber-400 uppercase tracking-widest">
+              İKİ ŞÜPHELİYİ AYNI ODADA YÜZLEŞTİR — ORTAK ALİBİ VE ÇATIŞMA TESTİ
+            </div>
+
+            <div className="grid grid-cols-11 items-center gap-3">
+              <div className="col-span-5 p-3 bg-[#0B0E14] border border-slate-700 flex items-center gap-3">
+                <img src={getPortraitUrl(suspect.portrait_index)} alt={suspect.name} className="w-14 h-16 object-cover border border-slate-600" />
+                <div>
+                  <div className="text-xs font-bold text-white">{suspect.name}</div>
+                  <div className="text-[10px] font-mono-tech text-slate-400">{suspect.role}</div>
+                </div>
+              </div>
+              <div className="col-span-1 text-center font-mono-tech text-red-500 font-bold">VS</div>
+              <div className="col-span-5 p-3 bg-[#0B0E14] border border-slate-700 space-y-2">
+                <select
+                  value={confrontOtherId}
+                  onChange={(e) => setConfrontOtherId(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 p-1.5 text-xs font-mono-tech text-white"
+                >
+                  {caseFile.suspects
+                    .filter((s) => s.id !== suspect.id)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.role})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                const otherId = confrontOtherId === suspect.id
+                  ? caseFile.suspects.find((s) => s.id !== suspect.id)?.id ?? ''
+                  : confrontOtherId;
+                const res = await apiConfrontSuspects(caseFile.seed, suspect.id, otherId);
+                setConfrontRes(res);
+                if (res.dramatic_hit) {
+                  sfx.contradictionHit();
+                  setTimeout(() => sfx.heartbeat(), 300);
+                  setHitFlash(true);
+                  setTimeout(() => setHitFlash(false), 950);
+                  setPulseBoost(res.pulse_spike);
+                  onConfrontUnlock?.(res.revealed_secret, res.unlocked_evidence_id);
+                } else {
+                  sfx.click();
+                }
+              }}
+              className="py-2.5 bg-amber-600/25 border border-amber-400 text-amber-100 font-mono-tech text-xs uppercase font-bold tracking-wider hover:bg-amber-600/40 cursor-pointer"
+            >
+              İKİSİNİ AYNI ODADA YÜZLEŞTİR
+            </button>
+
+            {confrontRes && (
+              <div className={`p-4 border space-y-2.5 ${confrontRes.dramatic_hit ? 'bg-red-950/25 border-red-600' : 'bg-[#0B0E14] border-slate-800'}`}>
+                {confrontRes.dialogue.map((line, i) => (
+                  <p key={i} className="text-sm text-slate-100 leading-relaxed">
+                    {line}
+                  </p>
+                ))}
+                {confrontRes.revealed_secret && (
+                  <div className="pt-2 border-t border-red-800/60 text-xs font-mono-tech text-amber-300">
+                    ★ {confrontRes.revealed_secret}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

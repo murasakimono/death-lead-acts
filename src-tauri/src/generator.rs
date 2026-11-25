@@ -268,7 +268,26 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
     let venue_index = rng.gen_range(0..VENUES.len());
     let venue = &VENUES[venue_index];
-    let crime = &CRIME_TYPES[rng.gen_range(0..CRIME_TYPES.len())];
+    let weather_choices = ["rain", "blackout", "fog"];
+    let scene_weather = weather_choices[rng.gen_range(0..weather_choices.len())].to_string();
+
+    // Resolution twist: 55% single_culprit, 25% accomplice (dual alibi!), 20% accident_suicide
+    let roll = rng.gen_range(0..100);
+    let resolution_type = if roll < 55 {
+        "single_culprit".to_string()
+    } else if roll < 80 {
+        "accomplice".to_string()
+    } else {
+        "accident_suicide".to_string()
+    };
+
+    let crime = if resolution_type == "accident_suicide" {
+        &CRIME_TYPES[3]
+    } else if resolution_type == "accomplice" {
+        &CRIME_TYPES[5]
+    } else {
+        &CRIME_TYPES[rng.gen_range(0..CRIME_TYPES.len())]
+    };
     let method = &METHODS[rng.gen_range(0..METHODS.len())];
     let victim_name = VICTIM_NAMES[rng.gen_range(0..VICTIM_NAMES.len())];
     let victim_role = venue.victim_roles[rng.gen_range(0..venue.victim_roles.len())];
@@ -580,12 +599,13 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         SceneHotspot {
             id: "hs1".to_string(),
             room_id: "r1".to_string(),
-            label: "Çalışma Masası & Çerçeve".to_string(),
+            label: "Çalışma Masası & Çerçeve (Çevir)".to_string(),
             x: 24.0,
             y: 52.0,
             uv_only: false,
             evidence_id: ev_pin_clue_id.clone(),
-            inspect_text: format!("Kurbanın çalışma masasında çerçeveli diploma ve kasa notu buldun. (OLY-02)"),
+            inspect_text: "Kurbanın çalışma masasında çerçeveli diploma buldun — arka yüzüne çevirip el yazısını oku!".to_string(),
+            inspect_kind: "frame_flip".to_string(),
         },
         SceneHotspot {
             id: "hs2".to_string(),
@@ -596,16 +616,18 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             uv_only: true,
             evidence_id: ev_uv_method_id.clone(),
             inspect_text: format!("UV 365nm altında çıplak gözle görünmeyen kritik iz parladı: {}", method.uv_trace_title),
+            inspect_kind: "uv_macro".to_string(),
         },
         SceneHotspot {
             id: "hs3".to_string(),
             room_id: "r3".to_string(),
-            label: "Koridor CCTV Terminal".to_string(),
+            label: "Yırtık Not & Koridor CCTV".to_string(),
             x: 48.0,
             y: 28.0,
             uv_only: false,
             evidence_id: ev_rh1_cam_id.clone(),
-            inspect_text: format!("Koridor kamerasının gece {} kaydını dışa aktardın. (CCTV-04)", rh1_time_str),
+            inspect_text: format!("Koridor kamerasının gece {} kaydı ve yanında 3 parçaya yırtılmış bir not bulundu.", rh1_time_str),
+            inspect_kind: "torn_note".to_string(),
         },
         SceneHotspot {
             id: "hs4".to_string(),
@@ -616,8 +638,31 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             uv_only: false,
             evidence_id: ev_rh2_log_id.clone(),
             inspect_text: format!("{} kapısının manyetik geçiş loglarını çektin. (LOG-05)", rooms[4].name),
+            inspect_kind: "terminal".to_string(),
         },
     ];
+
+    let torn_full = if resolution_type == "accomplice" {
+        format!("Saat {}'de {} kapıyı oyalayacak, {} içeri girecek. İkimiz de birbirimize şahitlik edeceğiz.", action_time_str, rh1_name, killer_name)
+    } else if resolution_type == "accident_suicide" {
+        format!("Artık bu baskıya dayanamıyorum — kimseyi suçlamayın, {} saatinde her şeyi kendi elimle bitiriyorum. — {}", action_time_str, victim_name)
+    } else {
+        format!("{} hakkındaki {} belgesini yarın 09:00'da savcılığa veriyorum. Geri dönüş yok.", killer_name, motive.0)
+    };
+    let inspectable_props = InspectableProps {
+        frame_front_title: format!("{} — ONUR BELGESİ", victim_name.to_uppercase()),
+        frame_front_subtitle: format!("{} • Kuruluş / Doğum: {}", victim_role, pin_year),
+        frame_back_handwriting: format!(
+            "\"Telefon PIN'i değişmedi ({}).\nKasa kadranı: {} — {} — {}\nKimseye güvenme.\"",
+            pin_year, safe_combo[0], safe_combo[1], safe_combo[2]
+        ),
+        torn_note_fragments: vec![
+            torn_full.chars().take(torn_full.chars().count() / 3).collect(),
+            torn_full.chars().skip(torn_full.chars().count() / 3).take(torn_full.chars().count() / 3).collect(),
+            torn_full.chars().skip((torn_full.chars().count() / 3) * 2).collect(),
+        ],
+        torn_note_full: torn_full,
+    };
 
     let mut suspects = Vec::new();
     let mut suspect_truths = Vec::new();
@@ -728,14 +773,19 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
 
             suspect_truths.push(SuspectTruth {
                 suspect_id: sid,
-                is_killer: true,
+                is_killer: resolution_type != "accident_suicide",
+                is_accomplice: false,
                 personality: archetype.to_string(),
                 real_actions: format!(
-                    "Saat {}'de {} ile {} içinde buluştu ve {} yöntemiyle olayı gerçekleştirdi. ({})",
-                    action_time_str, victim_name, rooms[0].name, method.name, hand
+                    "Saat {}'de {} ile {} içinde buluştu ({}).",
+                    action_time_str, victim_name, rooms[0].name, hand
                 ),
                 active_lie: format!("Saat {}'de binada değil evde olduğunu iddia ediyor.", action_time_str),
-                hidden_secret: format!("Gerçek fail. Motivasyonu: {}", motive.0),
+                hidden_secret: if resolution_type == "accident_suicide" {
+                    "Kurbanla son kez tartıştı ama öldürmedi — olay gerçek bir kaza/intihar.".to_string()
+                } else {
+                    format!("Gerçek fail. Motivasyonu: {}", motive.0)
+                },
             });
         } else if i == rh1_slot {
             let st1 = Statement {
@@ -810,10 +860,19 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             suspect_truths.push(SuspectTruth {
                 suspect_id: sid,
                 is_killer: false,
+                is_accomplice: resolution_type == "accomplice",
                 personality: archetype.to_string(),
                 real_actions: format!("Saat {}'de {} önünde görüldü. {}", rh1_time_str, rooms[1].name, ds1.2),
-                active_lie: "Koridora hiç çıkmadığını söylüyor.".to_string(),
-                hidden_secret: format!("MASUM — ama kirli sırrı var: {}. Çıkarken {} adlı kişiyi koridorda gördü.", ds1.0, killer_name),
+                active_lie: if resolution_type == "accomplice" {
+                    format!("{} ile birlikte olduğunu iddia ederek ortak alibi kuruyor.", killer_name)
+                } else {
+                    "Koridora hiç çıkmadığını söylüyor.".to_string()
+                },
+                hidden_secret: if resolution_type == "accomplice" {
+                    format!("İŞBİRLİKÇİ! {} için kamerayı oyalayıp sahte ikili alibi verdi.", killer_name)
+                } else {
+                    format!("MASUM — ama kirli sırrı var: {}. Çıkarken {} adlı kişiyi koridorda gördü.", ds1.0, killer_name)
+                },
             });
         } else if i == rh2_slot {
             let st1 = Statement {
@@ -876,6 +935,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             suspect_truths.push(SuspectTruth {
                 suspect_id: sid,
                 is_killer: false,
+                is_accomplice: false,
                 personality: archetype.to_string(),
                 real_actions: format!("Saat {}'de {} kapısında kart okuttu. {}", rh2_time_str, rooms[4].name, ds2.2),
                 active_lie: "Erken çıktığını söylüyor.".to_string(),
@@ -929,6 +989,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             suspect_truths.push(SuspectTruth {
                 suspect_id: sid,
                 is_killer: false,
+                is_accomplice: false,
                 personality: archetype.to_string(),
                 real_actions: "Ortak alanda nöbetteydi, kurbanın son gerginliğine şahit oldu.".to_string(),
                 active_lie: "Yalan söylemiyor.".to_string(),
@@ -982,6 +1043,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             suspect_truths.push(SuspectTruth {
                 suspect_id: sid,
                 is_killer: false,
+                is_accomplice: false,
                 personality: archetype.to_string(),
                 real_actions: "Diğer kanatta tanıklarla birlikteydi.".to_string(),
                 active_lie: "Yalan söylemiyor.".to_string(),
@@ -1186,6 +1248,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         time_limit_sec,
         crime_type: crime.0.to_string(),
         crime_badge: crime.1.to_string(),
+        scene_weather,
         venue_index,
         title: format!("{} Dosyası", victim_name),
         venue_name: venue.name.to_string(),
@@ -1195,9 +1258,10 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         victim_role: victim_role.to_string(),
         victim_age,
         briefing: format!(
-            "[{}] {} ({}, {} yaş) saat {} civarında {} içinde {}. İlk bakışta 5 şüphelinin de alibisi sağlam — ancak bu gece birden fazla kişi kendi sırrını saklamak için yalan söylüyor.",
+            "[{}] {} ({}, {} yaş) saat {} civarında {} içinde {}. İlk bakışta 5 şüphelinin de alibisi sağlam — ancak bu gece birden fazla kişi yalan söylüyor. Dikkat: İşbirlikçiler veya kaza/intihar sürprizleri mümkün!",
             crime.0, victim_name, victim_role, victim_age, found_time_str, rooms[0].name, crime.2
         ),
+        inspectable_props,
         rooms: rooms.clone(),
         hotspots,
         suspects,
@@ -1229,8 +1293,11 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
     ];
 
     let truth = CaseTruth {
+        resolution_type: resolution_type.clone(),
         killer_id,
         killer_name,
+        accomplice_id: if resolution_type == "accomplice" { Some(rh1_id) } else { None },
+        accomplice_name: if resolution_type == "accomplice" { Some(rh1_name) } else { None },
         method_evidence_id: ev_uv_method_id,
         alibi_evidence_id: ev_killer_alibi_id,
         motive_evidence_id: ev_motive_id,

@@ -7,6 +7,7 @@ import type {
   CareerRecord,
   CareerStats,
   CaseFile,
+  ConfrontationResult,
   DifficultyMode,
   OllamaStatus,
   PinVerifyResult,
@@ -15,6 +16,14 @@ import type {
 
 export async function apiNewCase(seed: string, difficulty: DifficultyMode = 'detective'): Promise<CaseFile> {
   return invoke<CaseFile>('new_case', { seed, difficulty });
+}
+
+export async function apiConfrontSuspects(
+  seed: string,
+  suspectAId: string,
+  suspectBId: string
+): Promise<ConfrontationResult> {
+  return invoke<ConfrontationResult>('confront_suspects', { seed, suspectAId, suspectBId });
 }
 
 export async function apiPresentEvidence(

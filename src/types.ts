@@ -18,6 +18,29 @@ export interface SceneHotspot {
   uv_only: boolean;
   evidence_id: string;
   inspect_text: string;
+  inspect_kind: 'frame_flip' | 'torn_note' | 'uv_macro' | 'terminal' | string;
+}
+
+export interface InspectableProps {
+  frame_front_title: string;
+  frame_front_subtitle: string;
+  frame_back_handwriting: string;
+  torn_note_fragments: string[];
+  torn_note_full: string;
+}
+
+export interface ConfrontationResult {
+  dramatic_hit: boolean;
+  pulse_spike: number;
+  dialogue: string[];
+  revealed_secret: string | null;
+  unlocked_evidence_id: string | null;
+}
+
+export interface PinnedQuote {
+  id: string;
+  suspectName: string;
+  text: string;
 }
 
 export interface EvidenceItem {
@@ -189,6 +212,7 @@ export interface CaseFile {
   time_limit_sec: number | null;
   crime_type: string;
   crime_badge: string;
+  scene_weather: 'rain' | 'blackout' | 'fog' | string;
   venue_index: number;
   title: string;
   venue_name: string;
@@ -198,6 +222,7 @@ export interface CaseFile {
   victim_role: string;
   victim_age: number;
   briefing: string;
+  inspectable_props: InspectableProps;
   rooms: RoomRect[];
   hotspots: SceneHotspot[];
   suspects: Suspect[];
@@ -232,7 +257,9 @@ export interface PinVerifyResult {
 
 export interface AccusationSubmission {
   seed: string;
+  verdict_type: 'single_culprit' | 'accomplice' | 'accident_suicide';
   killer_id: string;
+  accomplice_id: string | null;
   method_evidence_id: string;
   alibi_evidence_id: string;
   motive_evidence_id: string;
@@ -248,8 +275,10 @@ export interface AccusationResult {
   solved: boolean;
   score: number;
   rank: string;
+  resolution_type: string;
   locks: LockCheck[];
   killer_name: string;
+  accomplice_name: string | null;
   method_summary: string;
   motive_summary: string;
   chronological_reveal: string[];

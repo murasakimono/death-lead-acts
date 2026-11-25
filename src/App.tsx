@@ -25,6 +25,7 @@ import type {
   CaseFile,
   DeskTab,
   DifficultyMode,
+  PinnedQuote,
 } from './types';
 import { MainMenu } from './components/MainMenu';
 import { SceneView } from './components/SceneView';
@@ -72,6 +73,7 @@ export function App() {
 
   const [boardNodes, setBoardNodes] = useState<Record<string, BoardNodePos>>({});
   const [boardLinks, setBoardLinks] = useState<BoardLink[]>([]);
+  const [pinnedQuotes, setPinnedQuotes] = useState<PinnedQuote[]>([]);
 
   const [toast, setToast] = useState<string | null>(null);
   const [act2Banner, setAct2Banner] = useState(false);
@@ -107,6 +109,7 @@ export function App() {
     setAutopsyLockedWindow(null);
     setBoardNodes(defaultBoardLayout(cf));
     setBoardLinks([]);
+    setPinnedQuotes([]);
     setAct2Banner(false);
     setShowAccusation(false);
     setElapsedSec(0);
@@ -361,6 +364,7 @@ export function App() {
           <BoardView
             caseFile={caseFile}
             unlockedEvidence={unlockedEvidence}
+            pinnedQuotes={pinnedQuotes}
             nodes={boardNodes}
             links={boardLinks}
             onMoveNode={(id, x, y) => setBoardNodes((p) => ({ ...p, [id]: { id, x, y } }))}
@@ -399,6 +403,16 @@ export function App() {
               }
             }}
             onReputationChange={(d) => setReputation((r) => Math.max(0, Math.min(caseFile.max_reputation, r + d)))}
+            onPinQuote={(suspectName, text) => {
+              const qid = `quote_${Date.now()}`;
+              setPinnedQuotes((prev) => [...prev, { id: qid, suspectName, text }]);
+              setBoardNodes((p) => ({ ...p, [qid]: { id: qid, x: 40 + (pinnedQuotes.length % 4) * 230, y: 420 } }));
+              showToast(`İfade Delil Tahtası'na iğnelendi (${suspectName})`);
+            }}
+            onConfrontUnlock={(secret, evId) => {
+              if (evId) setUnlockedEvidence((prev) => new Set(prev).add(evId));
+              if (secret) showToast(secret);
+            }}
           />
         )}
 

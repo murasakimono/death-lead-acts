@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { getSceneUrl, type CaseFile, type SceneHotspot } from '../types';
 import { sfx } from '../api';
+import { ObjectInspectModal } from './ObjectInspectModal';
 
 interface SceneViewProps {
   caseFile: CaseFile;
@@ -29,6 +30,7 @@ export const SceneView: React.FC<SceneViewProps> = ({
   const [viewMode, setViewMode] = useState<'photo' | 'blueprint'>('photo');
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [selectedHotspot, setSelectedHotspot] = useState<SceneHotspot | null>(null);
+  const [inspectModalHotspot, setInspectModalHotspot] = useState<SceneHotspot | null>(null);
   const [discoveryCard, setDiscoveryCard] = useState<SceneHotspot | null>(null);
 
   const uvModeRef = useRef(uvMode);
@@ -117,6 +119,32 @@ export const SceneView: React.FC<SceneViewProps> = ({
         if (uvModeRef.current) {
           ctx.fillStyle = 'rgba(59, 7, 100, 0.34)';
           ctx.fillRect(0, 0, w, h);
+        } else if (caseFile.scene_weather === 'blackout') {
+          // Flickering crimson emergency blackout strobe
+          const strobe = 0.08 + Math.max(0, Math.sin(tick * 5.2)) * 0.14;
+          ctx.fillStyle = `rgba(185, 28, 28, ${strobe})`;
+          ctx.fillRect(0, 0, w, h);
+        } else if (caseFile.scene_weather === 'fog') {
+          // Drifting nocturnal mist layer
+          const fogGrad = ctx.createLinearGradient(0, h * 0.4, 0, h);
+          fogGrad.addColorStop(0, 'rgba(148, 163, 184, 0)');
+          fogGrad.addColorStop(1, 'rgba(148, 163, 184, 0.18)');
+          ctx.fillStyle = fogGrad;
+          ctx.fillRect(0, 0, w, h);
+        } else {
+          // Diagonal night rain streaks
+          ctx.save();
+          ctx.strokeStyle = 'rgba(186, 230, 253, 0.14)';
+          ctx.lineWidth = 1;
+          for (let r = 0; r < 34; r++) {
+            const rx = ((r * 97 + tick * 140) % (w + 120)) - 60;
+            const ry = ((r * 61 + tick * 420) % (h + 80)) - 40;
+            ctx.beginPath();
+            ctx.moveTo(rx, ry);
+            ctx.lineTo(rx - 8, ry + 26);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
       } else {
         // Blueprint architectural fallback / toggle mode
@@ -280,6 +308,7 @@ export const SceneView: React.FC<SceneViewProps> = ({
       if (Math.hypot(cx - hs.x, cy - hs.y) < 6.5) {
         if (hs.uv_only && !uvMode && !unlockedEvidence.has(hs.evidence_id)) return;
         setSelectedHotspot(hs);
+        setInspectModalHotspot(hs);
         if (!unlockedEvidence.has(hs.evidence_id)) {
           sfx.discover();
           setDiscoveryCard(hs);
@@ -411,7 +440,13 @@ export const SceneView: React.FC<SceneViewProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-sm font-bold text-white mb-1">{selectedHotspot.label}</div>
-              <p className="text-xs text-slate-300 leading-relaxed">{selectedHotspot.inspect_text}</p>
+              <p className="text-xs text-slate-300 leading-relaxed mb-2.5">{selectedHotspot.inspect_text}</p>
+              <button
+                onClick={() => setInspectModalHotspot(selectedHotspot)}
+                className="px-2.5 py-1 bg-amber-600/20 border border-amber-500/70 text-[10px] font-mono-tech text-amber-200 uppercase cursor-pointer hover:bg-amber-600/35"
+              >
+                YAKINDAN İNCELE / ETKİLEŞ
+              </button>
             </div>
           ) : (
             <div className="text-xs text-slate-500 font-mono-tech border border-dashed border-slate-800 p-4 mb-3 leading-relaxed">
@@ -447,6 +482,14 @@ export const SceneView: React.FC<SceneViewProps> = ({
           </div>
         </div>
       </div>
+
+      {inspectModalHotspot && (
+        <ObjectInspectModal
+          caseFile={caseFile}
+          hotspot={inspectModalHotspot}
+          onClose={() => setInspectModalHotspot(null)}
+        />
+      )}
     </div>
   );
 };

@@ -22,6 +22,15 @@ fn present_evidence(
 }
 
 #[tauri::command]
+fn confront_suspects(
+    seed: String,
+    suspect_a_id: String,
+    suspect_b_id: String,
+) -> ConfrontationResult {
+    interrogation::run_confrontation(&seed, &suspect_a_id, &suspect_b_id)
+}
+
+#[tauri::command]
 fn verify_pin(seed: String, pin: String) -> PinVerifyResult {
     interrogation::verify_phone_pin(&seed, &pin)
 }
@@ -52,6 +61,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             new_case,
             present_evidence,
+            confront_suspects,
             verify_pin,
             verify_safe,
             submit_accusation,

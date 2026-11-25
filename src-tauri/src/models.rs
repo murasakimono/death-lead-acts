@@ -22,6 +22,16 @@ pub struct SceneHotspot {
     pub uv_only: bool,
     pub evidence_id: String,
     pub inspect_text: String,
+    pub inspect_kind: String, // "frame_flip" | "torn_note" | "uv_macro" | "terminal"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InspectableProps {
+    pub frame_front_title: String,
+    pub frame_front_subtitle: String,
+    pub frame_back_handwriting: String,
+    pub torn_note_fragments: Vec<String>,
+    pub torn_note_full: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +39,7 @@ pub struct EvidenceItem {
     pub id: String,
     pub code: String,
     pub title: String,
-    pub category: String, // "forensic" | "digital" | "physical" | "secret"
+    pub category: String,
     pub summary: String,
     pub detail: String,
     pub timestamp: Option<String>,
@@ -87,20 +97,20 @@ pub struct Suspect {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhoneMessage {
+    pub sender: String,
+    pub time: String,
+    pub text: String,
+    pub deleted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhonePuzzle {
     pub owner_name: String,
     pub hint_text: String,
     pub pin_length: usize,
     pub unlocked_evidence_ids: Vec<String>,
     pub messages: Vec<PhoneMessage>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhoneMessage {
-    pub sender: String,
-    pub time: String,
-    pub text: String,
-    pub deleted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,8 +152,8 @@ pub struct AutopsyPuzzle {
 pub struct AudioPuzzle {
     pub channel_name: String,
     pub recorded_at: String,
-    pub target_freq: u32,      // 20..90
-    pub target_threshold: u32, // 20..90
+    pub target_freq: u32,
+    pub target_threshold: u32,
     pub clean_transcript: String,
     pub unlocked_evidence_id: String,
 }
@@ -151,17 +161,21 @@ pub struct AudioPuzzle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CctvPuzzle {
     pub camera_label: String,
-    pub target_frame: u32, // 15..85
+    pub target_frame: u32,
     pub anomaly_time: String,
-    pub anomaly_desc: String,
+    pub anomaly_desc: string_alias::Str,
     pub unlocked_evidence_id: String,
+}
+
+mod string_alias {
+    pub type Str = String;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChemCompound {
     pub id: String,
     pub name: String,
-    pub bars: Vec<u8>, // 6 bars 10..95
+    pub bars: Vec<u8>,
     pub effect: String,
 }
 
@@ -203,12 +217,13 @@ pub struct BodyMapPuzzle {
 pub struct CaseFile {
     pub seed: String,
     pub case_code: String,
-    pub difficulty: String, // "detective" | "homicide" | "timed"
+    pub difficulty: String,
     pub max_hints: u8,
     pub max_reputation: u8,
     pub time_limit_sec: Option<u32>,
     pub crime_type: String,
     pub crime_badge: String,
+    pub scene_weather: String, // "rain" | "blackout" | "fog"
     pub venue_index: usize,
     pub title: String,
     pub venue_name: String,
@@ -218,6 +233,7 @@ pub struct CaseFile {
     pub victim_role: String,
     pub victim_age: u8,
     pub briefing: String,
+    pub inspectable_props: InspectableProps,
     pub rooms: Vec<RoomRect>,
     pub hotspots: Vec<SceneHotspot>,
     pub suspects: Vec<Suspect>,
@@ -238,8 +254,11 @@ pub struct CaseFile {
 
 #[derive(Debug, Clone)]
 pub struct CaseTruth {
+    pub resolution_type: String, // "single_culprit" | "accomplice" | "accident_suicide"
     pub killer_id: String,
     pub killer_name: String,
+    pub accomplice_id: Option<String>,
+    pub accomplice_name: Option<String>,
     pub method_evidence_id: String,
     pub alibi_evidence_id: String,
     pub motive_evidence_id: String,
@@ -255,6 +274,7 @@ pub struct CaseTruth {
 pub struct SuspectTruth {
     pub suspect_id: String,
     pub is_killer: bool,
+    pub is_accomplice: bool,
     pub personality: String,
     pub real_actions: String,
     pub active_lie: String,
@@ -271,6 +291,15 @@ pub struct PresentResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfrontationResult {
+    pub dramatic_hit: bool,
+    pub pulse_spike: i32,
+    pub dialogue: Vec<String>,
+    pub revealed_secret: Option<String>,
+    pub unlocked_evidence_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PinVerifyResult {
     pub unlocked: bool,
     pub message: String,
@@ -280,7 +309,9 @@ pub struct PinVerifyResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccusationSubmission {
     pub seed: String,
+    pub verdict_type: String, // "single_culprit" | "accomplice" | "accident_suicide"
     pub killer_id: String,
+    pub accomplice_id: Option<String>,
     pub method_evidence_id: String,
     pub alibi_evidence_id: String,
     pub motive_evidence_id: String,
@@ -298,8 +329,10 @@ pub struct AccusationResult {
     pub solved: bool,
     pub score: u8,
     pub rank: String,
+    pub resolution_type: String,
     pub locks: Vec<LockCheck>,
     pub killer_name: String,
+    pub accomplice_name: Option<String>,
     pub method_summary: String,
     pub motive_summary: String,
     pub chronological_reveal: Vec<String>,

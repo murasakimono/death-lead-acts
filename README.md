@@ -4,7 +4,7 @@
 
 **Prosedürel Adli Dedektif, Delil Tahtası & Hibrit AI Sorgu Simülatörü**
 
-[![Version](https://img.shields.io/badge/release-v1.1.0-dc2626?style=for-the-badge)](https://github.com/murasakimono/death-lead-acts/releases/latest)
+[![Version](https://img.shields.io/badge/release-v1.2.0-dc2626?style=for-the-badge)](https://github.com/murasakimono/death-lead-acts/releases/latest)
 [![Platform](https://img.shields.io/badge/Windows-x64-0f172a?style=for-the-badge&logo=windows)](https://github.com/murasakimono/death-lead-acts/releases/latest)
 [![Stack](https://img.shields.io/badge/Tauri_v2_+_Rust-10.8_MB-b91c1c?style=for-the-badge&logo=rust)](https://tauri.app)
 
@@ -60,7 +60,7 @@ Klasik "listeden rastgele katil seç" mantığı yerine; **olay yerini UV 365nm 
 
 ## İndirme & Kurulum (Windows)
 
-1. [Releases](https://github.com/murasakimono/death-lead-acts/releases/latest) sayfasından **`Death Lead Acts_1.1.0_x64-setup.exe`** (~10.8 MB) dosyasını indir.
+1. [Releases](https://github.com/murasakimono/death-lead-acts/releases/latest) sayfasından **`Death Lead Acts_1.2.0_x64-setup.exe`** (~10.8 MB) dosyasını indir.
 2. Kurulumu çalıştır ve doğrudan oyna.
 3. *(Opsiyonel — Canlı AI Sorgu için)* Bilgisayarında [Ollama](https://ollama.com) kuruluysa bir model indirip (`ollama pull qwen2.5:3b`) Sorgu Odası'ndan **Canlı AI Sorgu** sekmesine geçmen yeterli.
 
