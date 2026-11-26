@@ -6,24 +6,50 @@ import { sfx } from '../api';
 interface ObjectInspectModalProps {
   caseFile: CaseFile;
   hotspot: SceneHotspot;
+  alreadyUnlocked?: boolean;
+  onCompleteInspect?: (hs: SceneHotspot) => void;
   onClose: () => void;
 }
 
 export const ObjectInspectModal: React.FC<ObjectInspectModalProps> = ({
   caseFile,
   hotspot,
+  alreadyUnlocked = false,
+  onCompleteInspect,
   onClose,
 }) => {
-  const [flipped, setFlipped] = useState(false);
-  const [pickedFragments, setPickedFragments] = useState<number[]>([]);
+  const [flipped, setFlipped] = useState(alreadyUnlocked);
+  const [pickedFragments, setPickedFragments] = useState<number[]>(
+    alreadyUnlocked ? caseFile.inspectable_props.torn_note_fragments.map((_, i) => i) : []
+  );
+  const [orderErr, setOrderErr] = useState<string | null>(null);
   const props = caseFile.inspectable_props;
 
   const noteComplete = pickedFragments.length === props.torn_note_fragments.length;
 
+  const toggleFlip = () => {
+    sfx.click();
+    setFlipped((f) => {
+      const next = !f;
+      if (next) onCompleteInspect?.(hotspot);
+      return next;
+    });
+  };
+
   const pickFragment = (idx: number) => {
     if (pickedFragments.includes(idx)) return;
+    if (idx !== pickedFragments.length) {
+      sfx.error();
+      setOrderErr(`Sıra hatalı! Önce PARÇA #${pickedFragments.length + 1} seçilmelidir.`);
+      return;
+    }
+    setOrderErr(null);
     sfx.click();
-    setPickedFragments((prev) => [...prev, idx]);
+    const next = [...pickedFragments, idx];
+    setPickedFragments(next);
+    if (next.length === props.torn_note_fragments.length) {
+      onCompleteInspect?.(hotspot);
+    }
   };
 
   return (
@@ -45,10 +71,7 @@ export const ObjectInspectModal: React.FC<ObjectInspectModalProps> = ({
           {hotspot.inspect_kind === 'frame_flip' && (
             <div className="space-y-4">
               <div
-                onClick={() => {
-                  sfx.click();
-                  setFlipped((f) => !f);
-                }}
+                onClick={toggleFlip}
                 className={`min-h-[220px] p-6 border-4 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center text-center ${
                   flipped
                     ? 'bg-[#1D1914] border-amber-800/80 text-amber-100 shadow-inner'
@@ -83,10 +106,7 @@ export const ObjectInspectModal: React.FC<ObjectInspectModalProps> = ({
               </div>
 
               <button
-                onClick={() => {
-                  sfx.click();
-                  setFlipped((f) => !f);
-                }}
+                onClick={toggleFlip}
                 className="w-full py-2 bg-slate-900 border border-slate-700 hover:border-amber-400 text-xs font-mono-tech text-amber-200 uppercase flex items-center justify-center gap-2 cursor-pointer"
               >
                 <RotateCw className="w-3.5 h-3.5" />
@@ -102,7 +122,8 @@ export const ObjectInspectModal: React.FC<ObjectInspectModalProps> = ({
                 3 yırtık kâğıt parçasını sırayla seçip gizli notu birleştir:
               </div>
               <div className="grid grid-cols-3 gap-2.5">
-                {props.torn_note_fragments.map((frag, idx) => {
+                {[2, 0, 1].filter((i) => i < props.torn_note_fragments.length).map((idx) => {
+                  const frag = props.torn_note_fragments[idx];
                   const picked = pickedFragments.includes(idx);
                   return (
                     <button
@@ -120,6 +141,11 @@ export const ObjectInspectModal: React.FC<ObjectInspectModalProps> = ({
                   );
                 })}
               </div>
+              {orderErr && (
+                <div className="p-2.5 bg-red-950/40 border border-red-700 text-xs font-mono-tech text-red-300">
+                  {orderErr}
+                </div>
+              )}
 
               {noteComplete && (
                 <div className="p-4 bg-emerald-950/25 border border-emerald-600 space-y-1.5">

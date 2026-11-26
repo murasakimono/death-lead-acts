@@ -6,6 +6,7 @@ import type { AccusationResult, CaseFile } from '../types';
 interface AccusationModalProps {
   caseFile: CaseFile;
   unlockedEvidence: Set<string>;
+  forcedReason?: string | null;
   onClose: () => void;
   onStartNewRandomCase: () => void;
   onCaseFinished?: (result: AccusationResult) => void;
@@ -14,6 +15,7 @@ interface AccusationModalProps {
 export const AccusationModal: React.FC<AccusationModalProps> = ({
   caseFile,
   unlockedEvidence,
+  forcedReason,
   onClose,
   onStartNewRandomCase,
   onCaseFinished,
@@ -27,6 +29,14 @@ export const AccusationModal: React.FC<AccusationModalProps> = ({
   const [result, setResult] = useState<AccusationResult | null>(null);
 
   const discovered = caseFile.evidence.filter((e) => unlockedEvidence.has(e.id));
+
+  const handleKillerChange = (nextId: string) => {
+    setKillerId(nextId);
+    if (nextId === accompliceId) {
+      const other = caseFile.suspects.find((s) => s.id !== nextId);
+      if (other) setAccompliceId(other.id);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!methodEvId || !alibiEvId || !motiveEvId) return;
@@ -58,10 +68,18 @@ export const AccusationModal: React.FC<AccusationModalProps> = ({
               <div className="text-base font-bold text-white">4 KİLİTLİ HÜKÜM & SUÇLAMA FİNALİ</div>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          {(!forcedReason || result) && (
+            <button onClick={onClose} className="text-slate-400 hover:text-white cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
+
+        {forcedReason && !result && (
+          <div className="px-6 py-2.5 bg-red-950/70 border-b border-red-600 text-xs font-mono-tech text-red-200 font-bold tracking-wider">
+            ⚠ {forcedReason}
+          </div>
+        )}
 
         {!result ? (
           <div className="p-6 space-y-5">
@@ -102,7 +120,7 @@ export const AccusationModal: React.FC<AccusationModalProps> = ({
                   </label>
                   <select
                     value={killerId}
-                    onChange={(e) => setKillerId(e.target.value)}
+                    onChange={(e) => handleKillerChange(e.target.value)}
                     className="w-full bg-[#0A0D12] border border-slate-700 p-2.5 text-sm text-white"
                   >
                     {caseFile.suspects.map((s) => (

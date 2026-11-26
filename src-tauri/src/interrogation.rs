@@ -90,20 +90,33 @@ pub fn run_confrontation(seed: &str, suspect_a_id: &str, suspect_b_id: &str) -> 
         }
     }
 
-    // Case 2: Confronting Killer + Witness/Red Herring who saw them
-    if a.id == truth.killer_id || b.id == truth.killer_id {
-        let killer = if a.id == truth.killer_id { a } else { b };
-        let other = if a.id == truth.killer_id { b } else { a };
+    // Case 2: Heated conflict when one of them has a hidden secret or lie (without instantly spoiling the killer!)
+    let a_has_lie = truth
+        .suspect_secrets
+        .iter()
+        .find(|s| s.suspect_id == a.id)
+        .map(|s| !s.active_lie.contains("Yalan söylemiyor"))
+        .unwrap_or(false);
+    let b_has_lie = truth
+        .suspect_secrets
+        .iter()
+        .find(|s| s.suspect_id == b.id)
+        .map(|s| !s.active_lie.contains("Yalan söylemiyor"))
+        .unwrap_or(false);
+
+    if a_has_lie || b_has_lie {
+        let liar = if a_has_lie { a } else { b };
+        let other = if a_has_lie { b } else { a };
         return ConfrontationResult {
             dramatic_hit: true,
-            pulse_spike: 34,
+            pulse_spike: 28,
             dialogue: vec![
-                format!("{}: \"Yüzüme bak {}! O gece koridorda seni gördüm, evde değildin!\"", other.name, killer.name),
-                format!("{}: \"Saçmalama! Kendi pisliğini örtmek için bana iftira atıyorsun dedektif, buna inanmayın!\"", killer.name),
+                format!("{}: \"Yüzüme bak {}! O gece koridor tarafında bir hareketlilik vardı, saatlerini neden saklıyorsun?\"", other.name, liar.name),
+                format!("{}: \"Saçmalama! Asıl sen kendi işine bak — o gece herkesin sakladığı bir şeyler vardı dedektif, tek şüpheli ben değilim!\"", liar.name),
             ],
             revealed_secret: Some(format!(
-                "YÜZLEŞTİRME ÇATIŞMASI: {} doğrudan {} aleyhine tanıklık etti; {} nabzı fırladı.",
-                other.name, killer.name, killer.name
+                "YÜZLEŞTİRME GERİLİMİ: {} ile {} arasında ciddi saat çelişkisi çıktı; {} savunmaya geçti.",
+                other.name, liar.name, liar.name
             )),
             unlocked_evidence_id: None,
         };
@@ -297,9 +310,11 @@ pub fn verify_accusation(sub: AccusationSubmission) -> AccusationResult {
     let c2 = sub.method_evidence_id == truth.method_evidence_id
         || sub.method_evidence_id == "ev_act2_lab"
         || sub.method_evidence_id == "ev_chem_match"
-        || sub.method_evidence_id == "ev_autopsy";
+        || sub.method_evidence_id == "ev_autopsy"
+        || sub.method_evidence_id == "ev_bodymap";
     let c3 = sub.alibi_evidence_id == truth.alibi_evidence_id
-        || sub.alibi_evidence_id == "ev_audio_clean";
+        || sub.alibi_evidence_id == "ev_audio_clean"
+        || sub.alibi_evidence_id == "ev_cctv_frame";
     let c4 = sub.motive_evidence_id == truth.motive_evidence_id
         || sub.motive_evidence_id == "ev_phone_sms"
         || sub.motive_evidence_id == "ev_safe_doc";
@@ -364,14 +379,15 @@ pub async fn check_ollama(endpoint: &str) -> OllamaStatus {
     let base = endpoint.trim_end_matches('/');
     let url = format!("{}/api/tags", base);
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(4))
         .build()
         .unwrap_or_default();
 
     match client.get(&url).send().await {
         Ok(res) if res.status().is_success() => {
             if let Ok(json) = res.json::<serde_json::Value>().await {
-                let models = json["models"]
+                let mut models = json["models"]
                     .as_array()
                     .map(|arr| {
                         arr.iter()
@@ -379,6 +395,14 @@ pub async fn check_ollama(endpoint: &str) -> OllamaStatus {
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
+                // Sort smarter/larger local models (7b/8b/14b) ahead of tiny 3b models
+                models.sort_by_key(|m| {
+                    let l = m.to_lowercase();
+                    if l.contains("14b") || l.contains("12b") { 0 }
+                    else if l.contains("8b") || l.contains("7b") { 1 }
+                    else if l.contains("3b") { 2 }
+                    else { 3 }
+                });
                 OllamaStatus { online: true, models, error: None }
             } else {
                 OllamaStatus { online: true, models: vec![], error: None }
@@ -410,26 +434,71 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
         .find(|s| s.suspect_id == req.suspect_id)
         .ok_or_else(|| "Şüpheli gerçek dosyası bulunamadı".to_string())?;
 
-    let presented_texts: Vec<String> = req
-        .presented_evidence_ids
+    let other_suspects: Vec<String> = case_file
+        .suspects
         .iter()
-        .filter_map(|eid| case_file.evidence.iter().find(|e| &e.id == eid))
-        .map(|e| format!("[{}] {}: {}", e.code, e.title, e.summary))
+        .filter(|s| s.id != suspect.id)
+        .map(|s| format!("{} ({})", s.name, s.role))
         .collect();
 
+    let mut presented_texts = Vec::new();
+    let mut incriminating_hits: usize = 0;
+    for eid in &req.presented_evidence_ids {
+        if let Some(e) = case_file.evidence.iter().find(|ev| &ev.id == eid) {
+            let hits_me = e.suspect_id.as_deref() == Some(suspect.id.as_str());
+            if hits_me {
+                incriminating_hits += 1;
+            }
+            presented_texts.push(format!(
+                "[{}] {} ({}): {}",
+                e.code,
+                e.title,
+                if hits_me { "SENİ DOĞRUDAN BAĞLIYOR" } else { "GENEL/BAŞKASIYLA İLGİLİ" },
+                e.summary
+            ));
+        }
+    }
+
+    let broken_mine: Vec<String> = suspect
+        .statements
+        .iter()
+        .filter(|st| req.broken_statement_ids.contains(&st.id))
+        .map(|st| format!("KIRILAN YALANIN: \"{}\"", st.text))
+        .collect();
+
+    let pressure_level = incriminating_hits + broken_mine.len();
+    let psych_state = if s_truth.is_killer || s_truth.is_accomplice {
+        match pressure_level {
+            0 => "RAHAT VE İNKÂRCI: Kendinden emin konuş, suçlamaları saçma bul, dikkati diğer şüphelilerden birine çek.",
+            1 => "GERGİN VE SAVUNMACI: Ses tonun sertleşsin, kanıta bahane uydur (tesadüf, teknik hata, yanlış anlaşılma), karşı saldırıya geç.",
+            _ => "KÖŞEYE SIKIŞTI: Artık o somut kanıtı inkâr edemezsin! Tereddüt et, kekele, kısmi itirafta bulun (ör. oradaydım ama öldürmedim) veya öfkeyle avukatını iste.",
+        }
+    } else if !s_truth.active_lie.contains("Yalan söylemiyor") {
+        if pressure_level == 0 {
+            "GİZLİ SIRRINI SAKLIYOR: Masumsun ama kendi küçük suçunun/sırrının ortaya çıkmasından korkuyorsun. Soruları geçiştir."
+        } else {
+            "SIRRI PATLADI AMA MASUM: Kendi küçük sırrını panikle itiraf et ama cinayetle alakan olmadığını hararetle savun, o gece gördüğün şüpheli hareketi anlat."
+        }
+    } else {
+        "MASUM TANIK: Suçlanırsan şaşır ve kız; bildiklerini net anlat ama abartma, elinde kanıt yoksa dedektife tepki göster."
+    };
+
     let system_prompt = format!(
-        "Sen 'Death Lead Acts' dedektif oyununda sorgulanan gerçekçi bir Türk şüphelisin. Asla yapay zekâ olduğunu söyleme, karakterden çıkma.\n\
-        KİMLİĞİN: {} ({}, {} yaş, {}). Kişilik/Üslup: {}.\n\
-        VAKA ({}): {} — Kurban: {} ({}).\n\
+        "Sen bir polis sorgu odasında oturan gerçek bir insansın. Rol yapmıyorsun, yapay zekâ değilsin. Asla 'Anlıyorum dedektif', 'Size nasıl yardımcı olabilirim', 'Yapay zekâ olarak' gibi robotik kalıplar KULLANMA.\n\
+        KİMLİĞİN: {} ({}, {} yaş, {}). Karakter üslubun: {}.\n\
+        OLAY: {} — {} — Kurban: {} ({}).\n\
+        DİĞER ŞÜPHELİLER (gerekirse isim vererek şüpheyi bunlara yönlendirebilirsin): {}\n\
+        SENİN ALİBİ İDDİAN: {}\n\
         GERÇEKTE NE YAPTIN: {}\n\
-        YALAN KURALIN: {}\n\
+        YALANIN: {}\n\
         GİZLİ SIRRIN: {}\n\
-        OYUNCUNUN MASAYA KOYDUĞU KANITLAR: {}\n\
-        KESİN KURALLAR:\n\
-        1. Sadece karakterine uygun, gergin, kısa ve doğal Türkçe cevap ver (2-4 cümle).\n\
-        2. Oyuncu yalanını çürüten SOMUT KANITI masaya koymadıkça ASLA suçunu veya sırrını itiraf etme; kıvır, savunmaya geç veya başka birinden şüphelen.\n\
-        3. Masaya konulan kanıt yalanını çürütüyorsa panikle, savunma değiştir veya sadece o spesifik sırrı kabul et.\n\
-        4. Gerçek fail/işbirlikçi olsan bile kolayca teslim olma; köşeye sıkışınca tereddüt et veya avukat iste.",
+        KIRILMIŞ İFADELERİN: {}\n\
+        MASAYA KONULAN KANITLAR: {}\n\
+        ŞU ANKİ PSİKOLOJİK DURUMUN: {}\n\
+        KONUŞMA KURALLARI:\n\
+        - Doğal, sert, kısa, gerçekçi Türkçe sorgu diyaloğu yaz (en fazla 2-3 cümle, gerekirse parantez içinde tek kısa jest ör. *(masaya hafifçe vurur)*).\n\
+        - Oyuncu seni doğrudan suçlarsa hemen pes etme; elinde SENİ DOĞRUDAN BAĞLIYAN kanıt yoksa alay et, kız veya başka şüpheliyi işaret et.\n\
+        - Yalnızca elindeki kanıt senin yalanını çürütüyorsa savunmanı değiştir.",
         suspect.name,
         suspect.role,
         suspect.age,
@@ -439,14 +508,14 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
         case_file.venue_name,
         case_file.victim_name,
         case_file.victim_role,
+        other_suspects.join(", "),
+        suspect.alibi_summary,
         s_truth.real_actions,
         s_truth.active_lie,
         s_truth.hidden_secret,
-        if presented_texts.is_empty() {
-            "Henüz kanıt sunulmadı.".to_string()
-        } else {
-            presented_texts.join(" | ")
-        }
+        if broken_mine.is_empty() { "Yok".to_string() } else { broken_mine.join(" | ") },
+        if presented_texts.is_empty() { "Masada kanıt yok.".to_string() } else { presented_texts.join(" | ") },
+        psych_state
     );
 
     let mut messages = vec![serde_json::json!({ "role": "system", "content": system_prompt })];
@@ -456,7 +525,8 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
     messages.push(serde_json::json!({ "role": "user", "content": req.user_message }));
 
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(45))
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -474,9 +544,19 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
     }
 
     let payload = if is_openai_style {
-        serde_json::json!({ "model": req.model_name, "messages": messages, "temperature": 0.7 })
+        serde_json::json!({ "model": req.model_name, "messages": messages, "temperature": 0.65, "max_tokens": 180 })
     } else {
-        serde_json::json!({ "model": req.model_name, "messages": messages, "stream": false, "options": { "temperature": 0.7 } })
+        serde_json::json!({
+            "model": req.model_name,
+            "messages": messages,
+            "stream": false,
+            "options": {
+                "temperature": 0.65,
+                "top_p": 0.9,
+                "repeat_penalty": 1.15,
+                "num_predict": 180
+            }
+        })
     };
 
     let resp = builder
@@ -496,10 +576,12 @@ pub async fn run_ai_interrogation(req: AiInterrogateRequest) -> Result<AiInterro
         body["message"]["content"].as_str().unwrap_or("...").trim().to_string()
     };
 
-    let pulse_hint = if !req.presented_evidence_ids.is_empty() && (s_truth.is_killer || s_truth.is_accomplice) {
-        28
+    let pulse_hint = if incriminating_hits > 0 && (s_truth.is_killer || s_truth.is_accomplice) {
+        32
+    } else if incriminating_hits > 0 {
+        22
     } else if !req.presented_evidence_ids.is_empty() {
-        14
+        10
     } else {
         6
     };

@@ -416,8 +416,13 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
     let ev_audio_id = "ev_audio_clean".to_string();
     let ev_chem_id = "ev_chem_match".to_string();
     let ev_safe_id = "ev_safe_doc".to_string();
+    let ev_cctv_frame_id = "ev_cctv_frame".to_string();
+    let ev_bodymap_id = "ev_bodymap".to_string();
+    let is_acc_suicide = resolution_type == "accident_suicide";
 
-    let method_detail_with_hand = if method.requires_handedness {
+    let method_detail_with_hand = if is_acc_suicide {
+        "UV 365nm altında boğuşma, sürükleme veya dışarıdan zorlama izi bulunmadı. Tüm kalıntılar yalnızca kurbanın kendi baskın eli ve çalışma masası etrafında yoğunlaşıyor.".to_string()
+    } else if method.requires_handedness {
         format!(
             "{} Adli vektör analizi failin kesinlikle {} olduğunu ortaya koyuyor.",
             method.uv_trace_detail, killer_hand
@@ -430,12 +435,18 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         EvidenceItem {
             id: ev_autopsy_id.clone(),
             code: "ADL-01".to_string(),
-            title: format!("Ön Otopsi: {}", method.name),
+            title: format!("Ön Otopsi: {}", if is_acc_suicide { "Şüpheli Ölüm / Dış Travma Yok" } else { method.name }),
             category: "forensic".to_string(),
             summary: format!("Bulunma: {} | Vücut ısısı: {}°C", found_time_str, body_temp_c),
             detail: format!(
                 "{} Kurban {} saat {} civarında bulundu. Ölüm penceresini Adli Tıp Hesaplayıcı ile kesinleştir.",
-                method.forensic_notes, victim_name, found_time_str
+                if is_acc_suicide {
+                    "Savunma yarası, boğuşma izi veya zorla uygulama bulgusu yok. Toksikolojik/mekanik bulgular kendi kendine uygulama veya kaza senaryosuyla uyumlu."
+                } else {
+                    method.forensic_notes
+                },
+                victim_name,
+                found_time_str
             ),
             timestamp: Some(found_time_str.clone()),
             suspect_id: None,
@@ -448,7 +459,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             code: "OLY-02".to_string(),
             title: "Kurbanın Masasındaki Not & Çerçeve".to_string(),
             category: "physical".to_string(),
-            summary: "Telefon PIN'i ve kasa kadran kombinasyonu ipucu içeriyor.".to_string(),
+            summary: "Çerçeve arka yüzünde telefon PIN'i ve kasa kadran kombinasyonu bulundu.".to_string(),
             detail: pin_hint.clone(),
             timestamp: None,
             suspect_id: None,
@@ -459,16 +470,18 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         EvidenceItem {
             id: ev_uv_method_id.clone(),
             code: "UV-03".to_string(),
-            title: method.uv_trace_title.to_string(),
+            title: if is_acc_suicide { "UV: Dış Müdahale Yok / Tekil İz".to_string() } else { method.uv_trace_title.to_string() },
             category: "forensic".to_string(),
-            summary: if method.requires_handedness {
+            summary: if is_acc_suicide {
+                "UV taramada boğuşma veya 2. kişiye ait biyolojik/eldiven izi tespit edilmedi.".to_string()
+            } else if method.requires_handedness {
                 format!("Kritik UV adli izi — Failin {} olduğunu kanıtlıyor.", killer_hand)
             } else {
                 format!("Kritik UV adli izi — {} mekanizmasını doğruluyor.", method.name)
             },
             detail: method_detail_with_hand,
             timestamp: Some(action_time_str.clone()),
-            suspect_id: Some(killer_id.clone()),
+            suspect_id: if is_acc_suicide { None } else { Some(killer_id.clone()) },
             unlocked_by_default: false,
             unlock_source: "scene".to_string(),
             is_uv_trace: true,
@@ -476,11 +489,11 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         EvidenceItem {
             id: ev_rh1_cam_id.clone(),
             code: "CCTV-04".to_string(),
-            title: format!("Koridor Kamerası — {}", rh1_time_str),
+            title: format!("Yırtık Not & Koridor İzi — {}", rh1_time_str),
             category: "digital".to_string(),
-            summary: format!("{} saat {}'de {} önünde görüntülendi.", rh1_name, rh1_time_str, rooms[1].name),
+            summary: format!("{} saat {}'de {} önünde görüntülendi; yanında yırtık not çıktı.", rh1_name, rh1_time_str, rooms[1].name),
             detail: format!(
-                "CCTV-02 kaydı: {} saat {}'de telaşlı şekilde {} kapısını yokluyor, 2 dakika sonra uzaklaşıyor. Ancak bu an asıl olay saatinden önce.",
+                "Koridor kaydı: {} saat {}'de telaşlı şekilde {} kapısını yokluyor, 2 dakika sonra uzaklaşıyor. Birleştirilen yırtık not ise o gecenin gerçek planını ele veriyor.",
                 rh1_name, rh1_time_str, rooms[1].name
             ),
             timestamp: Some(rh1_time_str.clone()),
@@ -511,10 +524,17 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             title: format!("HTS Baz Üçgenleme — {}", action_time_str),
             category: "digital".to_string(),
             summary: format!("{} telefonu {}'de olay yeri baz istasyonunda saptandı!", killer_name, action_time_str),
-            detail: format!(
-                "3 baz istasyonu kesişimi kesin: {} adlı şüphelinin telefonu saat {}'de iddia ettiği uzak semtte değil, doğrudan {} binasının 50 metre çapındaydı.",
-                killer_name, action_time_str, venue.name
-            ),
+            detail: if is_acc_suicide {
+                format!(
+                    "3 baz istasyonu kesişimi: {} telefonu saat {}'de binanın yakınındaydı; ancak kapı içten kilitliydi ve odaya giriş kaydı yok.",
+                    killer_name, action_time_str
+                )
+            } else {
+                format!(
+                    "3 baz istasyonu kesişimi kesin: {} adlı şüphelinin telefonu saat {}'de iddia ettiği uzak semtte değil, doğrudan {} binasının 50 metre çapındaydı.",
+                    killer_name, action_time_str, venue.name
+                )
+            },
             timestamp: Some(action_time_str.clone()),
             suspect_id: Some(killer_id.clone()),
             unlocked_by_default: false,
@@ -524,13 +544,28 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         EvidenceItem {
             id: ev_motive_id.clone(),
             code: "TEL-07".to_string(),
-            title: format!("Silinmiş Dosya: {}", motive.0),
+            title: if is_acc_suicide {
+                "Silinmiş Taslak: Kurbanın Veda & İtiraf Notu".to_string()
+            } else {
+                format!("Silinmiş Dosya: {}", motive.0)
+            },
             category: "secret".to_string(),
-            summary: format!("{} ile kurban arasındaki ölümcül çıkar çatışması.", killer_name),
-            detail: format!(
-                "Kurbanın kilitli telefonundan kurtarılan belge: {} Bu dosya sabah savcılığa/basına verilecekti. Hedef alınan isim doğrudan {}.",
-                motive.1, killer_name
-            ),
+            summary: if is_acc_suicide {
+                "Kurban ağır hukuki/mali çıkmaz nedeniyle kendi yazdığı veda taslağını telefonunda saklamış.".to_string()
+            } else {
+                format!("{} ile kurban arasındaki ölümcül çıkar çatışması.", killer_name)
+            },
+            detail: if is_acc_suicide {
+                format!(
+                    "Kurban {} telefonunda kendi yazdığı şifreli taslakta '{}' krizini artık taşıyamadığını ve {} ile son kez vedalaşmak istediğini yazmış. Cinayet şüphesi zayıflıyor.",
+                    victim_name, motive.0, killer_name
+                )
+            } else {
+                format!(
+                    "Kurbanın kilitli telefonundan kurtarılan belge: {} Bu dosya sabah savcılığa/basına verilecekti. Hedef alınan isim doğrudan {}.",
+                    motive.1, killer_name
+                )
+            },
             timestamp: Some(format_min(action_min.saturating_sub(20))),
             suspect_id: Some(killer_id.clone()),
             unlocked_by_default: false,
@@ -542,13 +577,24 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             code: "TEL-08".to_string(),
             title: "Kurtarılan Son SMS Trafiği".to_string(),
             category: "digital".to_string(),
-            summary: format!("Saat {}'de kurban 'Buluşalım, bu iş bu gece bitecek' yazmış.", format_min(action_min.saturating_sub(15))),
-            detail: format!(
-                "Kurban {} saat {}'de şifreli sohbetten '{}' ile buluşma teyidi yapmış. Mesaj hemen ardından karşı taraftan silinmeye çalışılmış.",
-                victim_name,
-                format_min(action_min.saturating_sub(15)),
-                killer_name
-            ),
+            summary: if is_acc_suicide {
+                format!("Saat {}'de kurban 'Kimseyi suçlama, kapıyı içeriden kilitledim' yazmış.", format_min(action_min.saturating_sub(15)))
+            } else {
+                format!("Saat {}'de kurban 'Buluşalım, bu iş bu gece bitecek' yazmış.", format_min(action_min.saturating_sub(15)))
+            },
+            detail: if is_acc_suicide {
+                format!(
+                    "Kurban {} saat {}'de {} ile sert tartışmanın ardından 'Artık yoruldum, kimseyi suçlamayın' mesajını göndermiş; {} panikle bu mesajı gizlemeye çalışmış.",
+                    victim_name, format_min(action_min.saturating_sub(15)), killer_name, killer_name
+                )
+            } else {
+                format!(
+                    "Kurban {} saat {}'de şifreli sohbetten '{}' ile buluşma teyidi yapmış. Mesaj hemen ardından karşı taraftan silinmeye çalışılmış.",
+                    victim_name,
+                    format_min(action_min.saturating_sub(15)),
+                    killer_name
+                )
+            },
             timestamp: Some(format_min(action_min.saturating_sub(15))),
             suspect_id: Some(killer_id.clone()),
             unlocked_by_default: false,
@@ -560,13 +606,24 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             code: "LAB-09".to_string(),
             title: "ACT II Ek Laboratuvar & DNA/Lif Raporu".to_string(),
             category: "forensic".to_string(),
-            summary: format!("Olay yeri mikro-lif analizi {} ile {} arasında kesin ayrım getirdi.", rh1_name, killer_name),
-            detail: format!(
-                "Gecikmeli laboratuvar sonucu: {} üzerindeki izler sadece {} bölgesine ait, olay odasıyla teması YOK. Olay odasındaki mikro-lifler {} ({}) profiliyle eşleşiyor.",
-                rh1_name, rooms[1].name, killer_name, killer_hand
-            ),
+            summary: if is_acc_suicide {
+                "Olay odasında kurban dışında hiçbir şüpheliye ait DNA/lif bulunmadı!".to_string()
+            } else {
+                format!("Olay yeri mikro-lif analizi {} ile {} arasında kesin ayrım getirdi.", rh1_name, killer_name)
+            },
+            detail: if is_acc_suicide {
+                format!(
+                    "Gecikmeli laboratuvar sonucu: {} odasının kapı sürgüsü içeriden kilitli; odada {} dahil hiçbir şüpheliye ait boğuşma veya temas DNA'sı çıkmadı. Olay kaza/intihar lehine netleşiyor.",
+                    rooms[0].name, killer_name
+                )
+            } else {
+                format!(
+                    "Gecikmeli laboratuvar sonucu: {} üzerindeki izler sadece {} bölgesine ait, olay odasıyla teması YOK. Olay odasındaki mikro-lifler {} ({}) profiliyle eşleşiyor.",
+                    rh1_name, rooms[1].name, killer_name, killer_hand
+                )
+            },
             timestamp: Some(death_time_str.clone()),
-            suspect_id: Some(killer_id.clone()),
+            suspect_id: if is_acc_suicide { None } else { Some(killer_id.clone()) },
             unlocked_by_default: false,
             unlock_source: "act2".to_string(),
             is_uv_trace: false,
@@ -576,13 +633,24 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             code: "SES-10".to_string(),
             title: "Temizlenen Gece Telsiz / Ortam Kaydı".to_string(),
             category: "digital".to_string(),
-            summary: format!("Saat {} kaydında '{}' sesi ve kapı sürgüsü duyuluyor.", action_time_str, killer_name),
-            detail: format!(
-                "Parazit filtresinden geçirilen ortam kaydı: \"...bu dosyayı sabah veremeyeceksin {}...\" — Ses spektrumu {} ile %94 örtüşüyor.",
-                victim_name, killer_name
-            ),
+            summary: if is_acc_suicide {
+                format!("Saat {} kaydında kapının içeriden kilitlendiği ve tek kişi olduğu duyuluyor.", action_time_str)
+            } else {
+                format!("Saat {} kaydında '{}' sesi ve kapı sürgüsü duyuluyor.", action_time_str, killer_name)
+            },
+            detail: if is_acc_suicide {
+                format!(
+                    "Parazit filtresinden geçirilen ortam kaydı: \"...{} yeter, kimseyi içeri almayacağım... [kapı içeriden sürgülendi, içeride boğuşma yok] ...\" — Kurban odada yalnız.",
+                    killer_name
+                )
+            } else {
+                format!(
+                    "Parazit filtresinden geçirilen ortam kaydı: \"...bu dosyayı sabah veremeyeceksin {}...\" — Ses spektrumu {} ile %94 örtüşüyor.",
+                    victim_name, killer_name
+                )
+            },
             timestamp: Some(action_time_str.clone()),
-            suspect_id: Some(killer_id.clone()),
+            suspect_id: if is_acc_suicide { None } else { Some(killer_id.clone()) },
             unlocked_by_default: false,
             unlock_source: "audio".to_string(),
             is_uv_trace: false,
@@ -608,15 +676,66 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             code: "KAS-12".to_string(),
             title: "Kilitli Kasa Gizli Dosyası".to_string(),
             category: "secret".to_string(),
-            summary: format!("Kasa içinden {} aleyhine ıslak imzalı belge çıktı.", killer_name),
-            detail: format!(
-                "Kasa kombinasyonu kırıldı: İçeride {} hakkındaki '{}' dosyasının orijinal kopyası ve tehdit notları bulundu.",
-                killer_name, motive.0
-            ),
+            summary: if is_acc_suicide {
+                "Kasa içinden kurbanın kendi imzalı mali/hukuki çöküş raporu çıktı.".to_string()
+            } else {
+                format!("Kasa içinden {} aleyhine ıslak imzalı belge çıktı.", killer_name)
+            },
+            detail: if is_acc_suicide {
+                format!(
+                    "Kasa kombinasyonu kırıldı: İçeride kurbanın kendi ağır borç/soruşturma dosyası ve 'Artık çıkış yolum yok' notu bulundu ({}).",
+                    motive.0
+                )
+            } else {
+                format!(
+                    "Kasa kombinasyonu kırıldı: İçeride {} hakkındaki '{}' dosyasının orijinal kopyası ve tehdit notları bulundu.",
+                    killer_name, motive.0
+                )
+            },
             timestamp: None,
-            suspect_id: Some(killer_id.clone()),
+            suspect_id: if is_acc_suicide { None } else { Some(killer_id.clone()) },
             unlocked_by_default: false,
             unlock_source: "safe".to_string(),
+            is_uv_trace: false,
+        },
+        EvidenceItem {
+            id: ev_cctv_frame_id.clone(),
+            code: "CAM-13".to_string(),
+            title: format!("CRT Kamera Anomali Karesi — {}", rh1_time_str),
+            category: "digital".to_string(),
+            summary: format!("{} saat {} karesinde {} kapısını zorlarken yakalandı.", rh1_name, rh1_time_str, rooms[1].name),
+            detail: format!(
+                "Güvenlik monitöründen kare kare dondurulan görüntü: {} saat {}'de {} kapısının önünde tek başına görülüyor; asıl ölüm penceresinden farklı bir zaman dilimi.",
+                rh1_name, rh1_time_str, rooms[1].name
+            ),
+            timestamp: Some(rh1_time_str.clone()),
+            suspect_id: Some(rh1_id.clone()),
+            unlocked_by_default: false,
+            unlock_source: "cctv".to_string(),
+            is_uv_trace: false,
+        },
+        EvidenceItem {
+            id: ev_bodymap_id.clone(),
+            code: "OTO-14".to_string(),
+            title: "Tam Otopsi & Bölgesel Travma Haritası".to_string(),
+            category: "forensic".to_string(),
+            summary: if is_acc_suicide {
+                "3 bölge tarandı: Savunma yarası ve dış müdahale belirtisi yok.".to_string()
+            } else {
+                format!("3 bölge tarandı: Dominant temas {} profiliyle uyumlu, gecikme {} dk.", killer_hand, method.onset_delay_min)
+            },
+            detail: if is_acc_suicide {
+                "Baş, göğüs ve bilek incelemeleri tamamlandı: İkinci bir kişinin fiziksel zorlamasına dair hiçbir iz yok; bulgular kaza/intihar senaryosunu destekliyor.".to_string()
+            } else {
+                format!(
+                    "Baş, göğüs ve bilek incelemeleri tamamlandı: {} Çekirdek ısı {}°C, savunma yarası yok, temas izi {} profiliyle örtüşüyor.",
+                    method.forensic_notes, body_temp_c, killer_hand
+                )
+            },
+            timestamp: Some(found_time_str.clone()),
+            suspect_id: None,
+            unlocked_by_default: false,
+            unlock_source: "bodymap".to_string(),
             is_uv_trace: false,
         },
     ];
@@ -1030,7 +1149,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
                     "Saat {} civarında {} kapısının önünde telaşlı bir gölge gördüm ama yüzünü seçemedim. Sadece çok hızlı yürüyordu.",
                     action_time_str, rooms[0].name
                 ),
-                press_reply: format!("O kişi {} gibi soğukkanlı görünüyordu; cep telefonu ekranı karanlıkta parladı, kesin baz istasyonuna düşmüştür.", killer_name),
+                press_reply: "Karanlıkta yüzünü seçemedim ama cep telefonu ekranı parladı — o saatte baz istasyonuna kesin düşmüştür.".to_string(),
                 is_lie: false,
                 contradicted_by: None,
                 break_reply: None,
@@ -1112,10 +1231,17 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         recorded_at: action_time_str.clone(),
         target_freq: rng.gen_range(28..78),
         target_threshold: rng.gen_range(30..75),
-        clean_transcript: format!(
-            "\"...{} bu dosyayı sabah savcılığa veremeyeceksin! ... [boğuşma ve kapı kilidi sesi] ...\" — Ses izi {} ile eşleşiyor.",
-            victim_name, killer_name
-        ),
+        clean_transcript: if is_acc_suicide {
+            format!(
+                "\"...{} yeter, kimseyi içeri almayacağım... [kapı içeriden kilitlendi, boğuşma sesi yok] ...\" — Kurban odada yalnız.",
+                killer_name
+            )
+        } else {
+            format!(
+                "\"...{} bu dosyayı sabah savcılığa veremeyeceksin! ... [boğuşma ve kapı kilidi sesi] ...\" — Ses izi {} ile eşleşiyor.",
+                victim_name, killer_name
+            )
+        },
         unlocked_evidence_id: ev_audio_id.clone(),
     };
 
@@ -1127,7 +1253,7 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             "{} saat {} karesinde {} kapısını zorlarken net şekilde yakalandı.",
             rh1_name, rh1_time_str, rooms[1].name
         ),
-        unlocked_evidence_id: ev_rh1_cam_id.clone(),
+        unlocked_evidence_id: ev_cctv_frame_id.clone(),
     };
 
     let compounds = vec![
@@ -1156,7 +1282,16 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             effect: "Silinmiş kan & künt/kesici metal izi".to_string(),
         },
     ];
-    let correct_c_idx = rng.gen_range(0..compounds.len());
+    // Match chemistry compound directly to actual forensic method!
+    let correct_c_idx = if method.name.contains("Potasyum") {
+        0
+    } else if method.name.contains("İlaç") {
+        1
+    } else if method.name.contains("Karbonmonoksit") {
+        2
+    } else {
+        3
+    };
     let chem_puzzle = ChemPuzzle {
         sample_label: format!("NUMUNE #{} — {}", clean_seed, rooms[0].name),
         unknown_bars: compounds[correct_c_idx].bars.clone(),
@@ -1169,7 +1304,11 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
         label: format!("{} DUVAR KASASI", rooms[1].name.to_uppercase()),
         hint_text: "3 haneli kadran kombinasyonu olay yerindeki çalışma masası notunun (OLY-02) arka yüzünde gizli.".to_string(),
         unlocked_evidence_id: ev_safe_id.clone(),
-        contents_summary: format!("{} aleyhine ıslak imzalı '{}' belgeleri kurtarıldı.", killer_name, motive.0),
+        contents_summary: if is_acc_suicide {
+            format!("Kurbanın kendi imzalı çöküş raporu ve '{}' dosyası kurtarıldı.", motive.0)
+        } else {
+            format!("{} aleyhine ıslak imzalı '{}' belgeleri kurtarıldı.", killer_name, motive.0)
+        },
     };
 
     let body_map_puzzle = BodyMapPuzzle {
@@ -1180,7 +1319,11 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
                 label: "Baş & Boyun".to_string(),
                 x: 50.0,
                 y: 16.0,
-                finding: method.forensic_notes.to_string(),
+                finding: if is_acc_suicide {
+                    "Dışarıdan darbe veya boğuşma izi yok; bulgular kendi kendine uygulama/kaza ile uyumlu.".to_string()
+                } else {
+                    method.forensic_notes.to_string()
+                },
                 critical: true,
             },
             BodyZone {
@@ -1199,19 +1342,23 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
                 label: "Eller & Önkollar".to_string(),
                 x: 26.0,
                 y: 52.0,
-                finding: format!(
-                    "Savunma yarası tespit edilmedi — kurban faili yakınına almış. Baskın temas izi {} profiliyle uyumlu.",
-                    killer_hand
-                ),
+                finding: if is_acc_suicide {
+                    "Savunma yarası yok; yalnızca kurbanın kendi parmak izi ve temas kalıntıları mevcut.".to_string()
+                } else {
+                    format!(
+                        "Savunma yarası tespit edilmedi — kurban faili yakınına almış. Baskın temas izi {} profiliyle uyumlu.",
+                        killer_hand
+                    )
+                },
                 critical: false,
             },
         ],
-        unlocked_evidence_id: ev_autopsy_id.clone(),
+        unlocked_evidence_id: ev_bodymap_id.clone(),
     };
 
     let phone_puzzle = PhonePuzzle {
         owner_name: victim_name.to_string(),
-        hint_text: "4 haneli PIN gerekli. İpucunu Olay Yeri'ndeki çalışma masasında (OLY-02) veya tanık ifadelerinde ara.".to_string(),
+        hint_text: "4 haneli PIN gerekli. İpucunu Olay Yeri'ndeki çalışma masasında (OLY-02) çerçeveyi çevirerek veya tanık ifadelerinde ara.".to_string(),
         pin_length: 4,
         unlocked_evidence_ids: vec![ev_motive_id.clone(), ev_phone_sms_id.clone()],
         messages: vec![
@@ -1224,20 +1371,28 @@ pub fn generate_case(seed: &str, difficulty: &str) -> (CaseFile, CaseTruth) {
             PhoneMessage {
                 sender: killer_name.clone(),
                 time: format_min(action_min.saturating_sub(15)),
-                text: format!("Buluşalım, {} meselesini bu gece yüz yüze bitirelim.", motive.0),
+                text: if is_acc_suicide {
+                    "Lütfen kapıyı aç, bu kadar baskıya tek başına dayanma — konuşalım!".to_string()
+                } else {
+                    format!("Buluşalım, {} meselesini bu gece yüz yüze bitirelim.", motive.0)
+                },
                 deleted: true,
             },
             PhoneMessage {
                 sender: "Avukatlık Bürosu".to_string(),
                 time: format_min(action_min.saturating_sub(90)),
-                text: format!("{} hakkındaki imzalı evrak sabah 09:00'da savcılığa iletilecek.", killer_name),
+                text: if is_acc_suicide {
+                    "Hakkınızdaki soruşturma dosyası yarın sabah 09:00'da işleme alınacak.".to_string()
+                } else {
+                    format!("{} hakkındaki imzalı evrak sabah 09:00'da savcılığa iletilecek.", killer_name)
+                },
                 deleted: true,
             },
         ],
     };
 
     let triangulation_puzzle = TriangulationPuzzle {
-        target_suspect_name: killer_name.clone(),
+        target_suspect_name: "BİLİNMEYEN HAT (IMEI-***48)".to_string(),
         signal_time: action_time_str.clone(),
         towers,
         target_x: tx,

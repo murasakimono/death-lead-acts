@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Smartphone,
   Radio,
@@ -17,7 +17,7 @@ import {
   Columns2,
 } from 'lucide-react';
 import { apiVerifyPin, apiVerifySafe, sfx } from '../api';
-import { formatMinutesFrom19, type CaseFile } from '../types';
+import { formatMinutesFrom19, getSceneUrl, type CaseFile } from '../types';
 
 interface ForensicsViewProps {
   caseFile: CaseFile;
@@ -25,10 +25,20 @@ interface ForensicsViewProps {
   phoneUnlocked: boolean;
   triangulationSolved: boolean;
   autopsyLockedWindow: [number, number] | null;
+  audioSolved: boolean;
+  cctvSolved: boolean;
+  chemSolved: boolean;
+  safeSolved: boolean;
+  inspectedZones: Set<string>;
   onUnlockEvidence: (ids: string[], toastMsg: string) => void;
   onPhoneUnlocked: () => void;
   onTriangulationSolved: () => void;
   onAutopsyLocked: (window: [number, number]) => void;
+  onAudioSolved: () => void;
+  onCctvSolved: () => void;
+  onChemSolved: () => void;
+  onSafeSolved: () => void;
+  onInspectZone: (zoneId: string) => void;
 }
 
 type ForensicTab =
@@ -49,10 +59,20 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
   phoneUnlocked,
   triangulationSolved,
   autopsyLockedWindow,
+  audioSolved,
+  cctvSolved,
+  chemSolved,
+  safeSolved,
+  inspectedZones,
   onUnlockEvidence,
   onPhoneUnlocked,
   onTriangulationSolved,
   onAutopsyLocked,
+  onAudioSolved,
+  onCctvSolved,
+  onChemSolved,
+  onSafeSolved,
+  onInspectZone,
 }) => {
   const [subTab, setSubTab] = useState<ForensicTab>('phone');
 
@@ -73,30 +93,43 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
   // Audio Cleaning
   const [audioFreq, setAudioFreq] = useState(50);
   const [audioThresh, setAudioThresh] = useState(50);
-  const [audioSolved, setAudioSolved] = useState(false);
 
   // CCTV Scrubber
   const [cctvFrame, setCctvFrame] = useState(10);
-  const [cctvSolved, setCctvSolved] = useState(false);
 
   // Chem Spectrum
-  const [chemSolved, setChemSolved] = useState(false);
   const [chemErr, setChemErr] = useState<string | null>(null);
 
   // Safe Combo
   const [d1, setD1] = useState(20);
   const [d2, setD2] = useState(60);
   const [d3, setD3] = useState(20);
-  const [safeSolved, setSafeSolved] = useState(false);
   const [safeMsg, setSafeMsg] = useState<string | null>(null);
 
   // Body Map
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [inspectedZones, setInspectedZones] = useState<Set<string>>(new Set());
 
   // Evidence Compare Desk
   const [compareA, setCompareA] = useState('');
   const [compareB, setCompareB] = useState('');
+
+  // Allow keyboard entry for Phone PIN
+  useEffect(() => {
+    if (subTab !== 'phone' || phoneUnlocked) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key >= '0' && e.key <= '9') {
+        sfx.click();
+        setPinInput((p) => (p.length < 4 ? p + e.key : p));
+      } else if (e.key === 'Backspace') {
+        setPinInput((p) => p.slice(0, -1));
+      } else if (e.key === 'Enter' && pinInput.length === 4) {
+        submitPin();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [subTab, phoneUnlocked, pinInput]);
 
   const handlePinKey = (d: string) => {
     if (phoneUnlocked) return;
@@ -153,6 +186,10 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
     if (overlap >= 15) {
       sfx.discover();
       onAutopsyLocked([a.true_death_start_min, a.true_death_end_min]);
+      onUnlockEvidence(
+        [a.unlocked_evidence_id],
+        `Ölüm penceresi kilitlendi: ${formatMinutesFrom19(a.true_death_start_min)} - ${formatMinutesFrom19(a.true_death_end_min)}`
+      );
       setAutopsyMsg(
         `DOĞRULANDI — Ölüm penceresi ${formatMinutesFrom19(a.true_death_start_min)} - ${formatMinutesFrom19(a.true_death_end_min)} olarak Zaman Çizelgesi'ne işlendi.`
       );
@@ -178,7 +215,7 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
   const lockAudio = () => {
     if (audioClarity >= 86) {
       sfx.discover();
-      setAudioSolved(true);
+      onAudioSolved();
       onUnlockEvidence([caseFile.audio_puzzle.unlocked_evidence_id], 'Telsiz kaydı temizlendi: SES-10 Delil Tahtası\'na eklendi!');
     } else {
       sfx.error();
@@ -189,8 +226,8 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
   const lockCctv = () => {
     if (cctvDiff <= 5) {
       sfx.discover();
-      setCctvSolved(true);
-      onUnlockEvidence([caseFile.cctv_puzzle.unlocked_evidence_id], 'CCTV anomali karesi yakalandı ve doğrulandı!');
+      onCctvSolved();
+      onUnlockEvidence([caseFile.cctv_puzzle.unlocked_evidence_id], 'CCTV anomali karesi yakalandı: CAM-13 Delil Tahtası\'na eklendi!');
     } else {
       sfx.error();
     }
@@ -199,7 +236,7 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
   const checkChem = (cid: string) => {
     if (cid === caseFile.chem_puzzle.correct_compound_id) {
       sfx.discover();
-      setChemSolved(true);
+      onChemSolved();
       setChemErr(null);
       onUnlockEvidence([caseFile.chem_puzzle.unlocked_evidence_id], 'Adli kimya spektrumu eşleşti: KİM-11 açıldı!');
     } else {
@@ -213,7 +250,7 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
     setSafeMsg(res.message);
     if (res.unlocked) {
       sfx.discover();
-      setSafeSolved(true);
+      onSafeSolved();
       onUnlockEvidence(res.unlocked_evidence_ids, 'Duvar kasası açıldı: KAS-12 gizli dosyası eklendi!');
     } else {
       sfx.error();
@@ -512,7 +549,7 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
                 <div
                   className="absolute inset-0 opacity-25"
                   style={{
-                    backgroundImage: `url('/assets/scenes/venue_${caseFile.venue_index}.jpg')`,
+                    backgroundImage: `url('${getSceneUrl(caseFile.venue_index)}')`,
                     backgroundSize: 'cover',
                     filter: 'grayscale(100%) sepia(35%) hue-rotate(85deg) contrast(145%)',
                   }}
@@ -691,7 +728,15 @@ export const ForensicsView: React.FC<ForensicsViewProps> = ({
                       onClick={() => {
                         sfx.click();
                         setSelectedZoneId(z.id);
-                        setInspectedZones((prev) => new Set(prev).add(z.id));
+                        const willComplete = !inspectedZones.has(z.id) && inspectedZones.size + 1 >= caseFile.body_map_puzzle.zones.length;
+                        onInspectZone(z.id);
+                        if (willComplete) {
+                          sfx.discover();
+                          onUnlockEvidence(
+                            [caseFile.body_map_puzzle.unlocked_evidence_id],
+                            'Vücut diyagramı tamamlandı: OTO-14 tam otopsi raporu Delil Tahtası\'na eklendi!'
+                          );
+                        }
                       }}
                       style={{ left: `${z.x}%`, top: `${z.y}%` }}
                       className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 cursor-pointer transition ${

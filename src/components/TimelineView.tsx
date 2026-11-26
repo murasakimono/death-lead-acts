@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Clock, AlertCircle, Route, CheckCircle2 } from 'lucide-react';
 import { formatMinutesFrom19, type CaseFile } from '../types';
 import { sfx } from '../api';
@@ -7,25 +7,50 @@ interface TimelineViewProps {
   caseFile: CaseFile;
   unlockedEvidence: Set<string>;
   autopsyLockedWindow: [number, number] | null;
+  routeSteps: string[];
+  routeVerified: boolean;
+  onRouteStepsChange: (steps: string[]) => void;
+  onVerifyRoute: (ok: boolean, msg: string) => void;
 }
 
 export const TimelineView: React.FC<TimelineViewProps> = ({
   caseFile,
   unlockedEvidence,
   autopsyLockedWindow,
+  routeSteps,
+  routeVerified,
+  onRouteStepsChange,
+  onVerifyRoute,
 }) => {
-  const [routeSteps, setRouteSteps] = useState<string[]>([]);
   const totalMin = 360;
   const hours = [0, 60, 120, 180, 240, 300, 360];
   const pct = (m: number) => `${Math.max(0, Math.min(100, (m / totalMin) * 100))}%`;
 
   const toggleRoomInRoute = (roomName: string) => {
+    if (routeVerified) return;
     sfx.click();
-    setRouteSteps((prev) => {
-      if (prev.includes(roomName)) return prev.filter((x) => x !== roomName);
-      if (prev.length >= 3) return [prev[1], prev[2], roomName];
-      return [...prev, roomName];
-    });
+    if (routeSteps.includes(roomName)) {
+      onRouteStepsChange(routeSteps.filter((x) => x !== roomName));
+    } else if (routeSteps.length >= 3) {
+      onRouteStepsChange([routeSteps[1], routeSteps[2], roomName]);
+    } else {
+      onRouteStepsChange([...routeSteps, roomName]);
+    }
+  };
+
+  const handleCheckRoute = () => {
+    if (routeSteps.length !== 3) return;
+    const crimeRoom = caseFile.rooms[0]?.name;
+    const corridorRoom = caseFile.rooms[2]?.name;
+    const isActionCenter = routeSteps[1] === crimeRoom;
+    const usesCorridor = routeSteps[0] === corridorRoom || routeSteps[2] === corridorRoom;
+    if (isActionCenter && usesCorridor) {
+      sfx.discover();
+      onVerifyRoute(true, `ROTA DOĞRULANDI: ${routeSteps.join(' → ')} (Olay odası ve koridor geçişi tutarlı!)`);
+    } else {
+      sfx.error();
+      onVerifyRoute(false, `Rota tutarsız: 2. adım olay odası (${crimeRoom}) olmalı ve giriş/kaçışta ana koridor (${corridorRoom}) kullanılmalı.`);
+    }
   };
 
   return (
@@ -159,11 +184,18 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             <span className="text-[11px] font-mono-tech text-[#C49A52] uppercase tracking-wider flex items-center gap-1.5">
               <Route className="w-3.5 h-3.5" /> OLAY YERİ ROTA YENİDEN İNŞASI (GİRİŞ → EYLEM → KAÇIŞ)
             </span>
-            {routeSteps.length === 3 && (
+            {routeVerified ? (
               <span className="text-[10px] font-mono-tech text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> ROTA HİPOTEZİ KAYDEDİLDİ
+                <CheckCircle2 className="w-3.5 h-3.5" /> ROTA ADLİ OLARAK DOĞRULANDI
               </span>
-            )}
+            ) : routeSteps.length === 3 ? (
+              <button
+                onClick={handleCheckRoute}
+                className="px-2.5 py-1 bg-[#8C1D1D] hover:bg-[#A62323] border border-[#C42B2B] text-[10px] font-mono-tech text-white uppercase cursor-pointer"
+              >
+                ROTAYI DOĞRULA
+              </button>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {caseFile.rooms.map((r) => {

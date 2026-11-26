@@ -22,10 +22,16 @@ interface InterrogationViewProps {
   unlockedEvidence: Set<string>;
   brokenStatements: Set<string>;
   revealedSecrets: Record<string, string[]>;
+  aiChats: Record<string, AiChatMessage[]>;
+  aiPresented: Record<string, string[]>;
+  usedTactics: Record<string, string[]>;
+  onUpdateAiChats: React.Dispatch<React.SetStateAction<Record<string, AiChatMessage[]>>>;
+  onUpdateAiPresented: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  onMarkTacticUsed: (suspectId: string, tactic: string) => void;
   onContradictionHit: (suspectId: string, statementId: string, secret: string | null) => void;
   onReputationChange: (delta: number) => void;
   onPinQuote?: (suspectName: string, text: string) => void;
-  onConfrontUnlock?: (secret: string | null, evidenceId: string | null) => void;
+  onConfrontUnlock?: (secret: string | null, evidenceId: string | null, suspectId?: string) => void;
 }
 
 export const InterrogationView: React.FC<InterrogationViewProps> = ({
@@ -34,6 +40,12 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
   unlockedEvidence,
   brokenStatements,
   revealedSecrets,
+  aiChats,
+  aiPresented,
+  usedTactics,
+  onUpdateAiChats,
+  onUpdateAiPresented,
+  onMarkTacticUsed,
   onContradictionHit,
   onReputationChange,
   onPinQuote,
@@ -48,13 +60,11 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
   const [hitFlash, setHitFlash] = useState(false);
   const [pulseBoost, setPulseBoost] = useState(0);
 
-  // AI Mode State
+  // AI Mode State (chats & presented evidence are lifted to App so tab switch never wipes them!)
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [endpointUrl, setEndpointUrl] = useState('http://127.0.0.1:11434');
-  const [modelName, setModelName] = useState('qwen2.5:3b');
+  const [modelName, setModelName] = useState('qwen2.5vl:7b');
   const [apiKey, setApiKey] = useState('');
-  const [aiChats, setAiChats] = useState<Record<string, AiChatMessage[]>>({});
-  const [aiPresented, setAiPresented] = useState<Record<string, string[]>>({});
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -197,17 +207,18 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
     }
   };
 
-  const handleSendAi = async () => {
-    if (!aiInput.trim() || aiLoading) return;
-    const msg = aiInput.trim();
-    setAiInput('');
+  const handleSendAi = async (overrideMsg?: string) => {
+    const raw = overrideMsg ?? aiInput;
+    if (!raw.trim() || aiLoading) return;
+    const msg = raw.trim();
+    if (!overrideMsg) setAiInput('');
     setAiError(null);
     setAiLoading(true);
     sfx.click();
 
     const prevHistory = aiChats[suspect.id] ?? [];
     const nextHistory: AiChatMessage[] = [...prevHistory, { role: 'user', content: msg }];
-    setAiChats((c) => ({ ...c, [suspect.id]: nextHistory }));
+    onUpdateAiChats((c) => ({ ...c, [suspect.id]: nextHistory }));
 
     try {
       const resp = await apiAiInterrogate({
@@ -221,7 +232,7 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
         model_name: modelName,
         api_key: apiKey.trim() || null,
       });
-      setAiChats((c) => ({
+      onUpdateAiChats((c) => ({
         ...c,
         [suspect.id]: [...nextHistory, { role: 'assistant', content: resp.reply }],
       }));
@@ -235,7 +246,7 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
 
   const toggleAiEvidence = (eid: string) => {
     sfx.click();
-    setAiPresented((prev) => {
+    onUpdateAiPresented((prev) => {
       const list = prev[suspect.id] ?? [];
       const next = list.includes(eid) ? list.filter((x) => x !== eid) : [...list, eid];
       return { ...prev, [suspect.id]: next };
@@ -460,29 +471,36 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                 { id: 'aggressive' as const, label: 'SERT BASKI', sub: 'Gergin tipleri sarsar', style: 'border-[#5E2A2A] bg-[#1E1313] text-[#E6A1A1] hover:border-[#C42B2B]' },
                 { id: 'sympathetic' as const, label: 'EMPATİ KUR', sub: 'Savunmayı indirir', style: 'border-[#2E424A] bg-[#131A1D] text-[#A9CBD9] hover:border-[#7AA2B8]' },
                 { id: 'bluff' as const, label: 'BLÖF YAP [RİSKLİ]', sub: 'Yerse itiraf, yemezse -1 itibar', style: 'border-[#5E4A22] bg-[#1E1910] text-[#E6C78A] hover:border-[#C49A52]' },
-              ].map((tac) => (
+              ].map((tac) => {
+                const alreadyUsed = (usedTactics[suspect.id] ?? []).includes(tac.id);
+                return (
                 <button
                   key={tac.id}
+                  disabled={alreadyUsed}
                   onClick={async () => {
+                    onMarkTacticUsed(suspect.id, tac.id);
                     const res = await apiApplyTactic(caseFile.seed, suspect.id, tac.id);
                     setPressLog(res.reply);
                     if (res.success) {
                       sfx.heartbeat();
                       setPulseBoost((p) => Math.max(0, Math.min(60, p + res.pulse_delta)));
                       if (res.revealed_secret) {
-                        onConfrontUnlock?.(res.revealed_secret, null);
+                        onConfrontUnlock?.(res.revealed_secret, null, suspect.id);
                       }
                     } else {
                       sfx.error();
                       if (res.reputation_delta !== 0) onReputationChange(res.reputation_delta);
                     }
                   }}
-                  className={`p-2 border text-left transition cursor-pointer ${tac.style}`}
+                  className={`p-2 border text-left transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${tac.style}`}
                 >
-                  <div className="text-[10px] font-mono-tech font-bold uppercase">{tac.label}</div>
-                  <div className="text-[9px] opacity-75 mt-0.5">{tac.sub}</div>
+                  <div className="text-[10px] font-mono-tech font-bold uppercase">
+                    {tac.label} {alreadyUsed && '✓'}
+                  </div>
+                  <div className="text-[9px] opacity-75 mt-0.5">{alreadyUsed ? 'Bu şüphelide kullanıldı' : tac.sub}</div>
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             {/* Branching Cross-Examination Follow-Up Questions */}
@@ -661,6 +679,24 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
               )}
             </div>
 
+            {/* Quick Interrogation Pressure Prompts */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Olay saatinde tam olarak neredeydin? Saat ver.',
+                'Masaya koyduğum bu kanıtı bana nasıl açıklıyorsun?',
+                'Kurbanla son görüşmende ne konuştunuz, kimi koruyorsun?',
+              ].map((qp) => (
+                <button
+                  key={qp}
+                  disabled={aiLoading}
+                  onClick={() => handleSendAi(qp)}
+                  className="px-2 py-1 text-[10px] font-mono-tech bg-[#0D1119] border border-slate-800 hover:border-amber-400/70 text-slate-300 cursor-pointer disabled:opacity-40"
+                >
+                  ⚡ {qp}
+                </button>
+              ))}
+            </div>
+
             {/* Input */}
             <div className="flex gap-2">
               <input
@@ -671,7 +707,7 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                 className="flex-1 bg-[#0C1017] border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500"
               />
               <button
-                onClick={handleSendAi}
+                onClick={() => handleSendAi()}
                 disabled={aiLoading}
                 className="px-4 py-2 bg-red-600/25 border border-red-500 text-red-100 font-mono-tech text-xs uppercase hover:bg-red-600/40 disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
               >
@@ -726,7 +762,7 @@ export const InterrogationView: React.FC<InterrogationViewProps> = ({
                   setHitFlash(true);
                   setTimeout(() => setHitFlash(false), 950);
                   setPulseBoost(res.pulse_spike);
-                  onConfrontUnlock?.(res.revealed_secret, res.unlocked_evidence_id);
+                  onConfrontUnlock?.(res.revealed_secret, res.unlocked_evidence_id, suspect.id);
                 } else {
                   sfx.click();
                 }

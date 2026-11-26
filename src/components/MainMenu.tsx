@@ -69,7 +69,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-red-600 shadow-[0_0_16px_#DC2626]" />
           <span className="text-xs font-mono-tech tracking-[0.28em] text-slate-300 uppercase">
-            CİNAYET & ADLİ SORUŞTURMA BÜROSU // v2.0 GÖLGE DOSYASI
+            CİNAYET & ADLİ SORUŞTURMA BÜROSU // v2.3 GÖLGE DOSYASI
           </span>
         </div>
 
@@ -99,7 +99,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <div className="col-span-4 space-y-6">
           <div>
             <div className="inline-block px-2.5 py-1 bg-red-600/20 border border-red-500/60 text-[10px] font-mono-tech text-red-300 tracking-[0.22em] uppercase mb-3">
-              v2.0 • KAMPANYA + SONSUZ BÜRO
+              v2.3 • KAMPANYA + SONSUZ BÜRO
             </div>
             <h1 className="text-5xl font-bold tracking-tight text-white leading-[1.03]">
               DEATH LEAD

@@ -20,6 +20,7 @@ import {
 import { apiNewCase, loadCareer, loadSolvedChapters, markChapterSolved, recordCareerCase, sfx } from './api';
 import type {
   AccusationResult,
+  AiChatMessage,
   BoardLink,
   BoardNodePos,
   CampaignChapter,
@@ -75,6 +76,17 @@ export function App() {
   const [phoneUnlocked, setPhoneUnlocked] = useState(false);
   const [triangulationSolved, setTriangulationSolved] = useState(false);
   const [autopsyLockedWindow, setAutopsyLockedWindow] = useState<[number, number] | null>(null);
+  const [audioSolved, setAudioSolved] = useState(false);
+  const [cctvSolved, setCctvSolved] = useState(false);
+  const [chemSolved, setChemSolved] = useState(false);
+  const [safeSolved, setSafeSolved] = useState(false);
+  const [inspectedZones, setInspectedZones] = useState<Set<string>>(new Set());
+  const [routeSteps, setRouteSteps] = useState<string[]>([]);
+  const [routeVerified, setRouteVerified] = useState(false);
+  const [aiChats, setAiChats] = useState<Record<string, AiChatMessage[]>>({});
+  const [aiPresented, setAiPresented] = useState<Record<string, string[]>>({});
+  const [usedTactics, setUsedTactics] = useState<Record<string, string[]>>({});
+  const [forcedAccusationReason, setForcedAccusationReason] = useState<string | null>(null);
 
   const [boardNodes, setBoardNodes] = useState<Record<string, BoardNodePos>>({});
   const [boardLinks, setBoardLinks] = useState<BoardLink[]>([]);
@@ -119,6 +131,17 @@ export function App() {
     setPhoneUnlocked(false);
     setTriangulationSolved(false);
     setAutopsyLockedWindow(null);
+    setAudioSolved(false);
+    setCctvSolved(false);
+    setChemSolved(false);
+    setSafeSolved(false);
+    setInspectedZones(new Set());
+    setRouteSteps([]);
+    setRouteVerified(false);
+    setAiChats({});
+    setAiPresented({});
+    setUsedTactics({});
+    setForcedAccusationReason(null);
     setBoardNodes(defaultBoardLayout(cf));
     setBoardLinks([]);
     setPinnedQuotes([]);
@@ -159,16 +182,40 @@ export function App() {
     }
   }, [elapsedSec, screen, caseFile]);
 
-  // Auto-trigger ACT II
+  // Timed mode expiration -> force prosecution verdict
   useEffect(() => {
-    if (!caseFile || currentAct >= 2) return;
-    if (brokenStatements.size >= 2 || (phoneUnlocked && brokenStatements.size >= 1)) {
+    if (screen !== 'desk' || !caseFile || showAccusation) return;
+    if (remainingSec === 0 && !forcedAccusationReason) {
+      sfx.error();
+      setForcedAccusationReason('SAVCILIK SÜRESİ DOLDU (00:00) — DERHAL HÜKÜM VER!');
+      setShowAccusation(true);
+    }
+  }, [remainingSec, screen, caseFile, showAccusation, forcedAccusationReason]);
+
+  // Reputation depleted -> force prosecution verdict
+  useEffect(() => {
+    if (screen !== 'desk' || !caseFile || showAccusation) return;
+    if (reputation === 0 && !forcedAccusationReason) {
+      sfx.error();
+      setForcedAccusationReason('SAVCILIK İTİBARIN TÜKENDİ — SON KARARINI MÜHÜRLE!');
+      setShowAccusation(true);
+    }
+  }, [reputation, screen, caseFile, showAccusation, forcedAccusationReason]);
+
+  // Auto-trigger ACT II and ACT III
+  useEffect(() => {
+    if (!caseFile) return;
+    if (currentAct < 2 && (brokenStatements.size >= 2 || (phoneUnlocked && brokenStatements.size >= 1))) {
       setCurrentAct(2);
       setAct2Banner(true);
       sfx.discover();
       setUnlockedEvidence((prev) => new Set(prev).add('ev_act2_lab'));
+    } else if (currentAct === 2 && (unlockedEvidence.size >= 8 || brokenStatements.size >= 3)) {
+      setCurrentAct(3);
+      sfx.discover();
+      showToast('ACT III AÇILDI — Tüm kritik bulgular masada, iddianameyi mühürleyebilirsin!');
     }
-  }, [brokenStatements.size, phoneUnlocked, currentAct, caseFile]);
+  }, [brokenStatements.size, phoneUnlocked, unlockedEvidence.size, currentAct, caseFile]);
 
   const handleToggleAmbient = () => {
     const next = !ambientOn;
@@ -345,7 +392,15 @@ export function App() {
             <Music className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => { const next = !soundOn; setSoundOn(next); sfx.enabled = next; }}
+            onClick={() => {
+              const next = !soundOn;
+              setSoundOn(next);
+              sfx.enabled = next;
+              if (!next) {
+                if (ambientOn) { setAmbientOn(false); sfx.toggleAmbient(false); }
+                if (musicOn) { setMusicOn(false); sfx.toggleNoirMusic(false); }
+              }
+            }}
             className="p-1 text-[#6F6658] hover:text-[#E6E0D4] cursor-pointer"
             title="Ses Efektleri"
           >
@@ -394,6 +449,11 @@ export function App() {
             phoneUnlocked={phoneUnlocked}
             triangulationSolved={triangulationSolved}
             autopsyLockedWindow={autopsyLockedWindow}
+            audioSolved={audioSolved}
+            cctvSolved={cctvSolved}
+            chemSolved={chemSolved}
+            safeSolved={safeSolved}
+            inspectedZones={inspectedZones}
             onUnlockEvidence={(ids, msg) => {
               setUnlockedEvidence((prev) => {
                 const n = new Set(prev);
@@ -405,6 +465,11 @@ export function App() {
             onPhoneUnlocked={() => setPhoneUnlocked(true)}
             onTriangulationSolved={() => setTriangulationSolved(true)}
             onAutopsyLocked={(w) => setAutopsyLockedWindow(w)}
+            onAudioSolved={() => setAudioSolved(true)}
+            onCctvSolved={() => setCctvSolved(true)}
+            onChemSolved={() => setChemSolved(true)}
+            onSafeSolved={() => setSafeSolved(true)}
+            onInspectZone={(zid) => setInspectedZones((prev) => new Set(prev).add(zid))}
           />
         )}
         {activeTab === 'board' && (
@@ -420,7 +485,13 @@ export function App() {
               setBoardLinks((p) => [...p, { id: `${from}-${to}-${Date.now()}`, from, to, label, color }]);
             }}
             onRemoveLink={(lid) => setBoardLinks((p) => p.filter((x) => x.id !== lid))}
-            onResetLayout={() => setBoardNodes(defaultBoardLayout(caseFile))}
+            onResetLayout={() => {
+              const base = defaultBoardLayout(caseFile);
+              pinnedQuotes.forEach((pq, idx) => {
+                base[pq.id] = { id: pq.id, x: 40 + (idx % 4) * 230, y: 420 };
+              });
+              setBoardNodes(base);
+            }}
           />
         )}
         {activeTab === 'timeline' && (
@@ -428,6 +499,13 @@ export function App() {
             caseFile={caseFile}
             unlockedEvidence={unlockedEvidence}
             autopsyLockedWindow={autopsyLockedWindow}
+            routeSteps={routeSteps}
+            routeVerified={routeVerified}
+            onRouteStepsChange={setRouteSteps}
+            onVerifyRoute={(ok, msg) => {
+              if (ok) setRouteVerified(true);
+              showToast(msg);
+            }}
           />
         )}
         {activeTab === 'interrogation' && (
@@ -437,6 +515,14 @@ export function App() {
             unlockedEvidence={unlockedEvidence}
             brokenStatements={brokenStatements}
             revealedSecrets={revealedSecrets}
+            aiChats={aiChats}
+            aiPresented={aiPresented}
+            usedTactics={usedTactics}
+            onUpdateAiChats={setAiChats}
+            onUpdateAiPresented={setAiPresented}
+            onMarkTacticUsed={(sid, tac) =>
+              setUsedTactics((prev) => ({ ...prev, [sid]: [...(prev[sid] ?? []), tac] }))
+            }
             onContradictionHit={(sid, stId, secret) => {
               setBrokenStatements((prev) => new Set(prev).add(stId));
               if (secret) {
@@ -456,9 +542,17 @@ export function App() {
               setBoardNodes((p) => ({ ...p, [qid]: { id: qid, x: 40 + (pinnedQuotes.length % 4) * 230, y: 420 } }));
               showToast(`İfade Delil Tahtası'na iğnelendi (${suspectName})`);
             }}
-            onConfrontUnlock={(secret, evId) => {
+            onConfrontUnlock={(secret, evId, suspectId) => {
               if (evId) setUnlockedEvidence((prev) => new Set(prev).add(evId));
-              if (secret) showToast(secret);
+              if (secret) {
+                if (suspectId) {
+                  setRevealedSecrets((prev) => {
+                    const list = prev[suspectId] ?? [];
+                    return list.includes(secret) ? prev : { ...prev, [suspectId]: [...list, secret] };
+                  });
+                }
+                showToast(secret);
+              }
             }}
           />
         )}
@@ -518,9 +612,15 @@ export function App() {
         <AccusationModal
           caseFile={caseFile}
           unlockedEvidence={unlockedEvidence}
-          onClose={() => setShowAccusation(false)}
+          forcedReason={forcedAccusationReason}
+          onClose={() => {
+            if (!forcedAccusationReason) setShowAccusation(false);
+          }}
           onStartNewRandomCase={() => startCase(randomSeed(), (caseFile.difficulty as DifficultyMode) || 'detective')}
-          onCaseFinished={handleCaseFinished}
+          onCaseFinished={(res) => {
+            setForcedAccusationReason(null);
+            handleCaseFinished(res);
+          }}
         />
       )}
     </div>

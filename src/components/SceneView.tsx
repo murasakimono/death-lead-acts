@@ -268,11 +268,46 @@ export const SceneView: React.FC<SceneViewProps> = ({
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
+      // Optical 2.2x Zoom Magnifier Lens when [Z] is active
+      if (zoomRef.current && viewModeRef.current === 'photo' && bgImgRef.current) {
+        const img = bgImgRef.current;
+        const scale = Math.max(w / img.width, h / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        const dx = (w - dw) / 2;
+        const dy = (h - dh) / 2;
+        const lensR = 88;
+        const mag = 2.2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(mx, my, lensR, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = '#05070B';
+        ctx.fillRect(mx - lensR, my - lensR, lensR * 2, lensR * 2);
+        ctx.drawImage(
+          img,
+          mx - (mx - dx) * mag,
+          my - (my - dy) * mag,
+          dw * mag,
+          dh * mag
+        );
+        if (uvModeRef.current) {
+          ctx.fillStyle = 'rgba(88, 28, 135, 0.25)';
+          ctx.fillRect(mx - lensR, my - lensR, lensR * 2, lensR * 2);
+        }
+        ctx.restore();
+        ctx.strokeStyle = uvModeRef.current ? '#C084FC' : '#38BDF8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(mx, my, lensR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       // Reticle
       ctx.strokeStyle = uvModeRef.current ? 'rgba(192, 132, 252, 0.85)' : 'rgba(251, 191, 36, 0.6)';
       ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(mx, my, zoomRef.current ? 32 : 20, 0, Math.PI * 2);
+      ctx.arc(mx, my, zoomRef.current ? 12 : 20, 0, Math.PI * 2);
       ctx.stroke();
 
       // REC HUD
@@ -309,7 +344,8 @@ export const SceneView: React.FC<SceneViewProps> = ({
         if (hs.uv_only && !uvMode && !unlockedEvidence.has(hs.evidence_id)) return;
         setSelectedHotspot(hs);
         setInspectModalHotspot(hs);
-        if (!unlockedEvidence.has(hs.evidence_id)) {
+        const requiresAction = hs.inspect_kind === 'frame_flip' || hs.inspect_kind === 'torn_note';
+        if (!unlockedEvidence.has(hs.evidence_id) && !requiresAction) {
           sfx.discover();
           setDiscoveryCard(hs);
           setTimeout(() => setDiscoveryCard(null), 3200);
@@ -487,6 +523,15 @@ export const SceneView: React.FC<SceneViewProps> = ({
         <ObjectInspectModal
           caseFile={caseFile}
           hotspot={inspectModalHotspot}
+          alreadyUnlocked={unlockedEvidence.has(inspectModalHotspot.evidence_id)}
+          onCompleteInspect={(hs) => {
+            if (!unlockedEvidence.has(hs.evidence_id)) {
+              sfx.discover();
+              setDiscoveryCard(hs);
+              setTimeout(() => setDiscoveryCard(null), 3200);
+              onDiscoverEvidence(hs.evidence_id, hs.inspect_text);
+            }
+          }}
           onClose={() => setInspectModalHotspot(null)}
         />
       )}
